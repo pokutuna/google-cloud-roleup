@@ -1,75 +1,42 @@
-# React Router SPA Template
+# Google Cloud RoleUp
 
-A modern template for building single-page applications with React Router v8, TypeScript, and Tailwind CSS. Pre-configured for GitHub Pages deployment.
+Google Cloud IAM のロールとパーミッションを「探す・見る・比べる」ための静的 SPA。
 
-**Demo**: https://pokutuna.github.io/react-router-spa-starter/
+- あるロールに特定のパーミッションが含まれるかを即答する
+- パーミッションから、それを含むロールを最小権限順に逆引きする
+- ロール同士の差分 (失う / 変わらず / 得る) を危険パーミッションのバッジつきで見る
+- スーパーセット / サブセット / 類似 / 補完の関連ロールを探索する
 
-## Features
+検索・選択の状態はすべて URL に載るため、ブックマーク・共有ができます。
 
-- React Router v8, React 19, TypeScript
-- Tailwind CSS v4, Vite
-- Biome (linting and formatting)
-- GitHub Pages ready with auto base path detection
-- GitHub Actions for deployment and testing
+設計の背景は [iam-role-explorer-plan.md](iam-role-explorer-plan.md) を参照。
 
-## Quick Start
+## 開発
 
 ```bash
-# Use this template on GitHub, then clone
 npm install
-npm run dev
+npm run dev       # 開発サーバ
+npm run build     # プロダクションビルド
+npm run typecheck # 型チェック
+npm run check     # lint + format (auto-fix)
 ```
 
-Open http://localhost:5173
+## データ更新
 
-## Commands
+`public/data/roleup.json` は IAM API から生成した静的データ (ロール / パーミッション / 関連ロールの前計算)。
 
 ```bash
-npm run dev       # Start dev server
-npm run build     # Build for production
-npm run typecheck # Type checking
-npm run check     # Lint + format with auto-fix
+# 要 gcloud ログイン。パーミッションの説明文の取得には
+# gcloud のデフォルトプロジェクトを使用する (未設定なら skip)
+npm run generate-data
 ```
 
-## Deployment
+生成時に前回ファイルと比較し、件数が 10% 以上減っていれば異常として fail します。
 
-Fork this repository and enable GitHub Pages in repository settings. The `.github/workflows/deploy-pages.yml` workflow automatically deploys on push to main.
+## 技術スタック
 
-Base path is auto-detected from repository name via `GITHUB_REPOSITORY` environment variable.
-
-## Adding Routes
-
-1. Create `app/routes/[name].tsx` with default export
-2. Add route to `app/routes.ts`
-
-Example:
-
-```typescript
-// app/routes/about.tsx
-export default function About() {
-  return <div>About Page</div>;
-}
-```
-
-```typescript
-// app/routes.ts
-import { type RouteConfig, index, route } from "@react-router/dev/routes";
-
-export default [
-  index("routes/home.tsx"),
-  route("about", "routes/about.tsx"),
-] satisfies RouteConfig;
-```
-
-## Project Structure
-
-```
-app/
-├── routes/          # Route components
-├── root.tsx         # Root layout
-├── routes.ts        # Route configuration
-└── app.css          # Global styles with Tailwind theme
-```
+React Router v8 (SPA mode) / React 19 / TypeScript / Tailwind CSS v4 / Vite / Biome。
+GitHub Pages へのデプロイは `.github/workflows/deploy-pages.yml` で main への push 時に行われます。
 
 ## License
 

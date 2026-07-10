@@ -8,7 +8,6 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
-import { Navigation } from "./components/Navigation";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -43,11 +42,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  return <Outlet />;
+}
+
+export function HydrateFallback() {
   return (
-    <>
-      <Navigation />
-      <Outlet />
-    </>
+    <div className="flex h-dvh items-center justify-center text-sm text-gray-400">
+      IAM ロールデータを読み込み中...
+    </div>
   );
 }
 

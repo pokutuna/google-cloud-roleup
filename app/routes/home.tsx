@@ -1,117 +1,151 @@
-import { Code, ExternalLink, GitBranch, Rocket, Zap } from "lucide-react";
+import { GripVertical, PanelLeftOpen } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { ComparePane } from "../components/ComparePane";
+import { DetailPane } from "../components/DetailPane";
+import { GuidePane } from "../components/GuidePane";
+import { HeaderBar } from "../components/HeaderBar";
+import { ReversePane } from "../components/ReversePane";
+import { RoleList } from "../components/RoleList";
+import { isServiceAgent, loadDataset } from "../lib/data";
+import { filterRoles, parseQuery } from "../lib/search";
+import { useExplorerState } from "../lib/url-state";
 import type { Route } from "./+types/home";
 
-export function meta({}: Route.MetaArgs) {
+const SIDEBAR_DEFAULT_WIDTH = 380;
+const SIDEBAR_MIN_WIDTH = 260;
+const SIDEBAR_MAX_WIDTH = 640;
+
+export function meta(_: Route.MetaArgs) {
   return [
-    { title: "React Router SPA Template" },
+    { title: "Google Cloud RoleUp" },
     {
       name: "description",
       content:
-        "A modern SPA template with React Router and Tailwind CSS, ready for GitHub Pages deployment",
+        "Google Cloud IAM のロールとパーミッションを探す・見る・比べるエクスプローラ",
     },
   ];
 }
 
-export default function Home() {
+export async function clientLoader(_: Route.ClientLoaderArgs) {
+  return loadDataset();
+}
+
+export default function Home({ loaderData: ds }: Route.ComponentProps) {
+  const state = useExplorerState();
+  const [expanded, setExpanded] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef<{ x: number; width: number } | null>(null);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      dragStart.current = { x: e.clientX, width: sidebarWidth };
+      setDragging(true);
+    },
+    [sidebarWidth],
+  );
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragStart.current) return;
+      const delta = e.clientX - dragStart.current.x;
+      const next = Math.min(
+        SIDEBAR_MAX_WIDTH,
+        Math.max(SIDEBAR_MIN_WIDTH, dragStart.current.width + delta),
+      );
+      setSidebarWidth(next);
+    },
+    [],
+  );
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      dragStart.current = null;
+      setDragging(false);
+    },
+    [],
+  );
+
+  const filtered = useMemo(() => {
+    const idxs = filterRoles(ds, parseQuery(state.q));
+    return state.showServiceAgents
+      ? idxs
+      : idxs.filter((i) => !isServiceAgent(ds.roles[i]));
+  }, [ds, state.q, state.showServiceAgents]);
+
+  // resolve selection to indexes; permission anchor wins for the right pane
+  const selRoleIdxs = state.selection
+    .filter((it) => it.type === "r")
+    .map((it) => ds.roleIndexByName.get(`roles/${it.name}`))
+    .filter((i): i is number => i !== undefined);
+  const permAnchor = [...state.selection]
+    .reverse()
+    .find((it) => it.type === "p");
+  const permId = permAnchor ? ds.permIdByName.get(permAnchor.name) : undefined;
+
+  const rightPane =
+    permId !== undefined ? (
+      <ReversePane ds={ds} state={state} permId={permId} />
+    ) : selRoleIdxs.length >= 2 ? (
+      <ComparePane ds={ds} state={state} roleIndexes={selRoleIdxs} />
+    ) : selRoleIdxs.length === 1 ? (
+      <DetailPane ds={ds} state={state} roleIndex={selRoleIdxs[0]} />
+    ) : (
+      <GuidePane state={state} />
+    );
+
   return (
-    <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        <header className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            React Router SPA Template
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            A modern, production-ready template for building single-page
-            applications
-          </p>
-          <a
-            href="https://github.com/pokutuna/react-router-spa-starter"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
-          >
-            <ExternalLink size={20} />
-            View on GitHub
-          </a>
-        </header>
-
-        <section className="grid md:grid-cols-2 gap-6 mb-16">
-          <FeatureCard
-            icon={<Zap className="text-yellow-500" size={32} />}
-            title="Lightning Fast"
-            description="Built with React Router v8 and Vite for optimal performance and developer experience"
-          />
-          <FeatureCard
-            icon={<Code className="text-blue-500" size={32} />}
-            title="Modern Stack"
-            description="TypeScript, Tailwind CSS v4, and all the latest web development tools"
-          />
-          <FeatureCard
-            icon={<Rocket className="text-purple-500" size={32} />}
-            title="GitHub Pages Ready"
-            description="Pre-configured for seamless deployment to GitHub Pages with proper routing"
-          />
-          <FeatureCard
-            icon={<GitBranch className="text-gray-700" size={32} />}
-            title="Template Repository"
-            description="Use this as a template to quickly start your next project with best practices"
-          />
-        </section>
-
-        <section className="bg-white rounded-lg shadow-md p-8 mb-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Quick Start</h2>
-          <div className="space-y-4">
-            <CodeBlock
-              title="1. Clone or use as template"
-              code="git clone https://github.com/pokutuna/react-router-spa-starter.git"
-            />
-            <CodeBlock title="2. Install dependencies" code="npm install" />
-            <CodeBlock title="3. Start development server" code="npm run dev" />
-            <CodeBlock title="4. Build for production" code="npm run build" />
-          </div>
-        </section>
-
-        <footer className="text-center text-gray-600">
-          <p className="mb-2">
-            Built with React Router, TypeScript, and Tailwind CSS
-          </p>
-          <p className="text-sm">
-            Customize this template to create your own amazing SPA
-          </p>
-        </footer>
+    <div
+      className={`flex h-dvh flex-col text-gray-900 dark:text-gray-100 ${dragging ? "select-none" : ""}`}
+    >
+      <HeaderBar ds={ds} state={state} />
+      <div className="flex min-h-0 flex-1">
+        {!expanded && (
+          <>
+            <aside
+              style={{ width: sidebarWidth }}
+              className="shrink-0 border-r border-gray-200 dark:border-gray-800"
+            >
+              <RoleList
+                ds={ds}
+                state={state}
+                roleIndexes={filtered}
+                onCollapse={() => setExpanded(true)}
+              />
+            </aside>
+            <div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className="group relative z-10 -ml-1 w-2 shrink-0 cursor-col-resize touch-none"
+            >
+              <div
+                className={`pointer-events-none absolute top-1/2 left-1/2 flex h-6 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 text-gray-500 opacity-0 dark:bg-gray-700 dark:text-gray-400 ${
+                  dragging
+                    ? "opacity-100"
+                    : "group-hover:opacity-100 transition-opacity"
+                }`}
+              >
+                <GripVertical size={12} />
+              </div>
+            </div>
+          </>
+        )}
+        <main className="relative min-w-0 flex-1">
+          {expanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              title="リストを表示"
+              aria-label="リストを表示"
+              className="absolute top-2 left-2 z-20 rounded border border-gray-200 bg-white p-1 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:hover:text-gray-300 cursor-pointer"
+            >
+              <PanelLeftOpen size={14} />
+            </button>
+          )}
+          {rightPane}
+        </main>
       </div>
-    </div>
-  );
-}
-
-interface FeatureCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}
-
-function FeatureCard({ icon, title, description }: FeatureCardProps) {
-  return (
-    <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-      <div className="mb-4">{icon}</div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
-    </div>
-  );
-}
-
-interface CodeBlockProps {
-  title: string;
-  code: string;
-}
-
-function CodeBlock({ title, code }: CodeBlockProps) {
-  return (
-    <div>
-      <p className="text-sm font-medium text-gray-700 mb-2">{title}</p>
-      <pre className="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto">
-        <code>{code}</code>
-      </pre>
     </div>
   );
 }
