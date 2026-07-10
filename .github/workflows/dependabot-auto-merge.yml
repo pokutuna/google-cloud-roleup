@@ -1,0 +1,27 @@
+name: Dependabot auto-merge
+
+# Auto-merge Dependabot PRs that only bump a patch version.
+# fetch-metadata gives the official semver update-type, so no title parsing.
+# `gh pr merge --auto` waits for required checks (the Test workflow, enforced
+# via branch protection on main) before merging.
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v3
+      - name: Enable auto-merge for patch updates
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash "$PR_URL"

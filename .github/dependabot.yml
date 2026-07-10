@@ -1,0 +1,46 @@
+# Supply-chain attack mitigation:
+# `cooldown.default-days` delays update PRs until a release is at least
+# 14 days old, giving time for malicious releases to be detected and yanked.
+# Kept in sync with `min-release-age` in .npmrc (which guards direct
+# `npm install` / `npm ci`).
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    assignees:
+      - "pokutuna"
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      # react-router packages must move together: `@react-router/serve` and
+      # `@react-router/node` pin an *exact* `react-router` peer, so separate
+      # per-package bumps land mismatched lockfiles that fail `npm ci`.
+      # Listed before `dev-dependencies` so `@react-router/dev` joins this
+      # group rather than the dev group (first matching group wins).
+      react-router:
+        patterns:
+          - "react-router"
+          - "@react-router/*"
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    assignees:
+      - "pokutuna"
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "deps"
