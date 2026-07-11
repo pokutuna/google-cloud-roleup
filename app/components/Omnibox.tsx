@@ -1,6 +1,7 @@
 import { Command } from "cmdk";
 import { useMemo, useRef, useState } from "react";
 import { type Dataset, serviceDisplayName, shortRoleName } from "../lib/data";
+import { useT } from "../lib/i18n";
 import { suggest } from "../lib/search";
 import type { ExplorerState } from "../lib/url-state";
 import { ENTITY } from "./colors";
@@ -18,6 +19,7 @@ const ITEM =
   "flex cursor-pointer items-baseline gap-2 rounded px-2 py-1 text-sm data-[selected=true]:bg-gray-100 dark:data-[selected=true]:bg-gray-800";
 
 export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
+  const t = useT();
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -31,10 +33,38 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
     lastQ.current = state.q;
     if (text !== state.q) setText(state.q);
   }
-  const onValueChange = (value: string) => {
-    setText(value);
+  // Enter only commits a suggestion the user explicitly highlighted with the
+  // arrow keys; otherwise the raw query stands as typed (the list is just
+  // dismissed). cmdk auto-highlights the first item, so without this guard
+  // Enter would always select something.
+  const navigated = useRef(false);
+  // setQ triggers a router navigation that re-renders the whole app, so
+  // keystrokes only update the local text immediately and the query is
+  // committed after a short pause (or right away on Enter / selection).
+  const commitTimer = useRef<number | undefined>(undefined);
+  const commit = (value: string) => {
+    window.clearTimeout(commitTimer.current);
     lastQ.current = value;
     state.setQ(value);
+  };
+  const onValueChange = (value: string) => {
+    navigated.current = false;
+    setFocused(true);
+    setText(value);
+    window.clearTimeout(commitTimer.current);
+    commitTimer.current = window.setTimeout(() => commit(value), 150);
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      navigated.current = true;
+    } else if (e.key === "Enter" && !navigated.current) {
+      // stopPropagation keeps cmdk's root handler from selecting the
+      // auto-highlighted item; Enter applies the query as typed and just
+      // dismisses the suggestion list
+      e.stopPropagation();
+      commit(text);
+      setFocused(false);
+    }
   };
 
   const sugg = useMemo(
@@ -55,15 +85,16 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
     <Command
       shouldFilter={false}
       className="relative flex-1"
-      label="ロール・パーミッション検索"
+      label={t("header.searchLabel")}
     >
       <Command.Input
         ref={inputRef}
         value={text}
         onValueChange={onValueChange}
+        onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
-        placeholder="検索: s:bigquery p:tables.getData owner ... (s:=サービス r:=ロール p:=パーミッション)"
+        placeholder={t("omnibox.placeholder")}
         className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:ring-purple-900"
       />
       <Command.List
@@ -72,14 +103,18 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
       >
         {sugg && sugg.services.length > 0 && (
           <Command.Group
-            heading={<span className={GROUP_HEADING}>サービス</span>}
+            heading={
+              <span className={GROUP_HEADING}>{t("omnibox.groupService")}</span>
+            }
           >
             {sugg.services.map((prefix) => (
               <Command.Item
                 key={`s:${prefix}`}
                 value={`s:${prefix}`}
                 onSelect={() => {
-                  onValueChange(`${replaceLastToken(text, `s:${prefix}`)} `);
+                  const value = `${replaceLastToken(text, `s:${prefix}`)} `;
+                  setText(value);
+                  commit(value);
                   inputRef.current?.focus();
                 }}
                 className={ITEM}
@@ -95,7 +130,9 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
         )}
         {sugg && sugg.roleIndexes.length > 0 && (
           <Command.Group
-            heading={<span className={GROUP_HEADING}>ロール</span>}
+            heading={
+              <span className={GROUP_HEADING}>{t("omnibox.groupRole")}</span>
+            }
           >
             {sugg.roleIndexes.map((idx) => {
               const role = ds.roles[idx];
@@ -121,7 +158,11 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
         )}
         {sugg && sugg.permIds.length > 0 && (
           <Command.Group
-            heading={<span className={GROUP_HEADING}>パーミッション</span>}
+            heading={
+              <span className={GROUP_HEADING}>
+                {t("omnibox.groupPermission")}
+              </span>
+            }
           >
             {sugg.permIds.map((id) => (
               <Command.Item

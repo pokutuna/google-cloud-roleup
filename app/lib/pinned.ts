@@ -1,7 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "roleup:pinnedServices";
-
 export const DEFAULT_PINNED_SERVICES: string[] = [
   "iam",
   "bigquery",
@@ -15,9 +13,11 @@ export const DEFAULT_PINNED_SERVICES: string[] = [
   "secretmanager",
 ];
 
-function readStorage(): string[] | null {
+const DEFAULT_PINNED_ROLES: string[] = [];
+
+function readStorage(storageKey: string): string[] | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (raw === null) return null;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.every((v) => typeof v === "string")) {
@@ -29,51 +29,83 @@ function readStorage(): string[] | null {
   }
 }
 
-function writeStorage(value: string[]): void {
+function writeStorage(storageKey: string, value: string[]): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    window.localStorage.setItem(storageKey, JSON.stringify(value));
   } catch {
     // ignore (private mode / quota / SSR)
   }
 }
 
-function clearStorage(): void {
+function clearStorage(storageKey: string): void {
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(storageKey);
   } catch {
     // ignore
   }
 }
 
 type Listener = () => void;
-const listeners = new Set<Listener>();
 
-// cached snapshot: null means "not customized, use default"
-let snapshot: string[] | null = readStorage();
+export type PinnedStoreHook = () => {
+  pinned: string[];
+  toggle: (key: string) => void;
+  reset: () => void;
+  isDefault: boolean;
+};
 
-function notify(): void {
-  for (const l of listeners) l();
-}
+/**
+ * Create a small external store (module-level subscribe/notify) backed by
+ * localStorage, synchronized across all components in the current tab.
+ * `null` snapshot means "not customized, use default".
+ */
+function createPinnedStore(
+  storageKey: string,
+  defaults: string[],
+): PinnedStoreHook {
+  const listeners = new Set<Listener>();
+  let snapshot: string[] | null = readStorage(storageKey);
 
-function subscribe(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
+  function notify(): void {
+    for (const l of listeners) l();
+  }
 
-function getSnapshot(): string[] {
-  return snapshot ?? DEFAULT_PINNED_SERVICES;
-}
+  function subscribe(listener: Listener): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
 
-function setPinned(next: string[]): void {
-  snapshot = next;
-  writeStorage(next);
-  notify();
-}
+  function getSnapshot(): string[] {
+    return snapshot ?? defaults;
+  }
 
-function resetPinned(): void {
-  snapshot = null;
-  clearStorage();
-  notify();
+  function setPinned(next: string[]): void {
+    snapshot = next;
+    writeStorage(storageKey, next);
+    notify();
+  }
+
+  function resetPinned(): void {
+    snapshot = null;
+    clearStorage(storageKey);
+    notify();
+  }
+
+  return function usePinnedStore() {
+    const pinned = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+    const toggle = (key: string) => {
+      const current = getSnapshot();
+      const next = current.includes(key)
+        ? current.filter((p) => p !== key)
+        : [...current, key];
+      setPinned(next);
+    };
+
+    const reset = () => resetPinned();
+
+    return { pinned, toggle, reset, isDefault: snapshot === null };
+  };
 }
 
 /**
@@ -81,23 +113,16 @@ function resetPinned(): void {
  * Backed by localStorage and synchronized across all components in the
  * current tab via a small external store (module-level subscribe/notify).
  */
-export function usePinnedServices(): {
-  pinned: string[];
-  toggle: (prefix: string) => void;
-  reset: () => void;
-  isDefault: boolean;
-} {
-  const pinned = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+export const usePinnedServices = createPinnedStore(
+  "roleup:pinnedServices",
+  DEFAULT_PINNED_SERVICES,
+);
 
-  const toggle = (prefix: string) => {
-    const current = getSnapshot();
-    const next = current.includes(prefix)
-      ? current.filter((p) => p !== prefix)
-      : [...current, prefix];
-    setPinned(next);
-  };
-
-  const reset = () => resetPinned();
-
-  return { pinned, toggle, reset, isDefault: snapshot === null };
-}
+/**
+ * Pinned roles (short names, e.g. "bigquery.user") shown surfaced within
+ * their service group in the sidebar's role list.
+ */
+export const usePinnedRoles = createPinnedStore(
+  "roleup:pinnedRoles",
+  DEFAULT_PINNED_ROLES,
+);

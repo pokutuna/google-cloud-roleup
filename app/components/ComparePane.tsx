@@ -2,6 +2,7 @@ import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { badgesForPermissions } from "../lib/badges";
 import { type Dataset, permParts, shortRoleName } from "../lib/data";
+import { type Translate, useT } from "../lib/i18n";
 import {
   filterPermIds,
   hasPermFilter,
@@ -92,11 +93,12 @@ function labelPartsForMask(
   roleIndexes: number[],
   ds: Dataset,
   mask: number,
+  t: Translate,
 ): LabelPart[] {
   const n = roleIndexes.length;
   const full = (1 << n) - 1;
   if (mask === full) {
-    return [{ text: "共通", className: COMMON_SECTION.text }];
+    return [{ text: t("compare.common"), className: COMMON_SECTION.text }];
   }
   const names = roleIndexes
     .map((roleIdx, i) => ({ i, name: shortRoleName(ds.roles[roleIdx].name) }))
@@ -104,7 +106,7 @@ function labelPartsForMask(
   if (names.length === 1) {
     return [
       {
-        text: `${names[0].name} のみ`,
+        text: t("compare.onlyIn", { name: names[0].name }),
         className: seriesColor(names[0].i).text,
       },
     ];
@@ -133,10 +135,11 @@ function MatrixView({
   roleIndexes: number[];
   parsed: ParsedQuery;
 }) {
+  const t = useT();
   const n = roleIndexes.length;
   const masks = useMemo(() => computeMasks(ds, roleIndexes), [ds, roleIndexes]);
   const full = (1 << n) - 1;
-  const [showCommon, setShowCommon] = useState(false);
+  const [showCommon, setShowCommon] = useState(true);
   const [showUnheld, setShowUnheld] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>(n === 2 ? "diff" : "name");
@@ -231,7 +234,7 @@ function MatrixView({
 
     const isSingle = (mask: number) => popcount(mask) === 1;
     const sections: DiffSection[] = orderedMasks.map((mask) => {
-      const parts = labelPartsForMask(roleIndexes, ds, mask);
+      const parts = labelPartsForMask(roleIndexes, ds, mask, t);
       return {
         key: `sec:${mask}`,
         mask,
@@ -244,13 +247,13 @@ function MatrixView({
       sections.push({
         key: "sec:-1",
         mask: -1,
-        parts: [{ text: "未保持", className: "text-gray-400" }],
+        parts: [{ text: t("compare.unheld"), className: "text-gray-400" }],
         permIds: [...unheldPermIds].sort((a, b) => a - b),
         alwaysShow: false,
       });
     }
     return sections;
-  }, [ds, roleIndexes, permIds, masks, unheldPermIds, showCommon, full]);
+  }, [ds, roleIndexes, permIds, masks, unheldPermIds, showCommon, full, t]);
 
   const totalRows = useMemo(() => {
     if (sortMode === "name") {
@@ -388,7 +391,7 @@ function MatrixView({
             onChange={(e) => setShowCommon(e.target.checked)}
             className="accent-purple-600"
           />
-          共通も表示 ({commonCount})
+          {t("compare.showCommon", { n: commonCount })}
         </label>
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
           <input
@@ -397,7 +400,7 @@ function MatrixView({
             onChange={(e) => setShowUnheld(e.target.checked)}
             className="accent-purple-600"
           />
-          未保持の権限も表示
+          {t("compare.showUnheld")}
         </label>
         <div className="flex items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
           <button
@@ -409,7 +412,7 @@ function MatrixView({
                 : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             }`}
           >
-            差分順
+            {t("compare.sortDiff")}
           </button>
           <button
             type="button"
@@ -420,11 +423,11 @@ function MatrixView({
                 : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             }`}
           >
-            権限名順
+            {t("compare.sortName")}
           </button>
         </div>
         <span className="ml-auto text-[10px] text-gray-400">
-          {groupCount} グループ / {totalRows} 権限
+          {t("compare.groupsAndRows", { groups: groupCount, rows: totalRows })}
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -433,7 +436,7 @@ function MatrixView({
             <tr className="sticky top-0 z-10 bg-white dark:bg-gray-950">
               <th className="sticky left-0 z-20 w-56 min-w-56 border-r border-b border-gray-200 bg-white px-2 py-1.5 text-left align-bottom dark:border-gray-800 dark:bg-gray-950">
                 <span className="text-[10px] font-normal text-gray-400">
-                  権限
+                  {t("compare.permissionColumn")}
                 </span>
               </th>
               {roleIndexes.map((roleIdx, i) => {
@@ -518,7 +521,7 @@ function MatrixView({
                               colSpan={roleIndexes.length + 1}
                               className="py-0.5 pl-9 text-xs text-gray-400"
                             >
-                              ありません
+                              {t("compare.none")}
                             </td>
                           </tr>
                         )}
@@ -545,6 +548,7 @@ export function ComparePane({
   state: ExplorerState;
   roleIndexes: number[];
 }) {
+  const t = useT();
   const parsed = useMemo(() => parseQuery(state.q), [state.q]);
   const filterActive = hasPermFilter(parsed);
   const filterTerms = [
@@ -566,7 +570,7 @@ export function ComparePane({
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
-            比較: {roleIndexes.length} ロール
+            {t("compare.title", { n: roleIndexes.length })}
           </h2>
           <div className="flex flex-wrap gap-1.5">
             {roleIndexes.map((roleIdx, i) => {

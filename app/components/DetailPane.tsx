@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { type Dataset, shortRoleName } from "../lib/data";
+import { useT } from "../lib/i18n";
 import {
   filterPermIds,
   hasPermFilter,
@@ -9,6 +10,7 @@ import {
   stripPermQualifiers,
 } from "../lib/search";
 import type { ExplorerState } from "../lib/url-state";
+import { MAX_COMPARE_ROLES } from "./colors";
 import { PermGroupList } from "./PermGroupList";
 import { MonoName, PermFilterNotice } from "./primitives";
 
@@ -21,6 +23,7 @@ function MissTeaser({
   state: ExplorerState;
   term: string;
 }) {
+  const t = useT();
   const { matchCount, roleCount, exact } = useMemo(() => {
     const bits = matchingPermBits(ds, term);
     let matchCount = 0;
@@ -46,14 +49,14 @@ function MissTeaser({
   if (matchCount === 0) {
     return (
       <p className="p-3 text-sm text-gray-500">
-        「{term}」に一致するパーミッションはありません。
+        {t("detail.notIncluded", { term })}
       </p>
     );
   }
   return (
     <div className="m-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
       <p className="font-medium text-amber-900 dark:text-amber-200">
-        このロールには含まれません
+        {t("detail.notInThisRole")}
       </p>
       <button
         type="button"
@@ -62,7 +65,7 @@ function MissTeaser({
         }
         className="mt-1 text-amber-800 underline dark:text-amber-300 cursor-pointer"
       >
-        「{term}」を含むロール {roleCount} 件を逆引きする →
+        {t("detail.reverseLookupCount", { term, count: roleCount })}
       </button>
     </div>
   );
@@ -72,16 +75,13 @@ function MissTeaser({
 function DiffBadge({ plus, minus }: { plus?: number; minus?: number }) {
   if (plus === undefined && minus === undefined) return null;
   return (
-    <span className="flex shrink-0 items-baseline gap-1 font-mono text-xs">
-      {!!plus && (
-        <span className="text-green-600 dark:text-green-400">+{plus}</span>
-      )}
-      {!!minus && (
-        <span className="text-red-600 dark:text-red-400">
-          {"−"}
-          {minus}
-        </span>
-      )}
+    <span className="flex shrink-0 items-baseline font-mono text-xs">
+      <span className="inline-block min-w-[4.5ch] text-right text-green-600 dark:text-green-400">
+        {!!plus && `+${plus}`}
+      </span>
+      <span className="inline-block min-w-[4.5ch] text-right text-red-600 dark:text-red-400">
+        {!!minus && `−${minus}`}
+      </span>
     </span>
   );
 }
@@ -101,8 +101,13 @@ function RelatedRoleRow({
   minus?: number;
   plainCount?: number;
 }) {
+  const t = useT();
   const other = ds.roles[otherIndex];
   const short = shortRoleName(other.name);
+  const selectedRoles = state.selection.filter((it) => it.type === "r");
+  const capBlocked =
+    selectedRoles.length >= MAX_COMPARE_ROLES &&
+    !selectedRoles.some((it) => it.name === short);
   return (
     <li className="group flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-900">
       <button
@@ -125,10 +130,20 @@ function RelatedRoleRow({
         </span>
         <button
           type="button"
+          disabled={capBlocked}
           onClick={() => state.toggle({ type: "r", name: short })}
-          className="absolute inset-y-0 right-0 flex items-center rounded border border-gray-300 bg-white px-1.5 text-xs text-gray-500 opacity-0 transition-opacity hover:border-purple-400 hover:text-purple-600 group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:bg-gray-950 dark:hover:text-purple-300 cursor-pointer"
+          title={
+            capBlocked
+              ? t("rolelist.maxCompare", { n: MAX_COMPARE_ROLES })
+              : undefined
+          }
+          className={`absolute inset-y-0 right-0 flex items-center whitespace-nowrap rounded border border-gray-300 bg-white px-1.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:bg-gray-950 ${
+            capBlocked
+              ? "opacity-40 group-hover:opacity-40"
+              : "hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 cursor-pointer"
+          }`}
         >
-          +比較
+          {t("detail.addCompare")}
         </button>
       </span>
     </li>
@@ -144,19 +159,18 @@ function RelatedRoles({
   state: ExplorerState;
   roleIndex: number;
 }) {
+  const t = useT();
   const rel = ds.relations[roleIndex];
   const anchor = ds.roles[roleIndex];
   const anchorSize = anchor.permIds.length;
 
   return (
-    <div className="flex flex-col gap-3 p-3">
-      <p className="text-[10px] text-gray-400">
-        +増える / −減る: このロールから乗り換えた場合のパーミッション数の増減
-      </p>
+    <div className="flex flex-col gap-4 p-3">
+      <p className="text-[10px] text-gray-400">{t("detail.diffHint")}</p>
       {rel.supersets.length > 0 && (
         <section>
-          <h3 className="mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-            このロールを完全に含むロール
+          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+            {t("detail.supersets")}
           </h3>
           <ul>
             {rel.supersets.map((j) => (
@@ -173,8 +187,8 @@ function RelatedRoles({
       )}
       {rel.subsets.length > 0 && (
         <section>
-          <h3 className="mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-            このロールに完全に含まれるロール
+          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+            {t("detail.subsets")}
           </h3>
           <ul>
             {rel.subsets.map((j) => (
@@ -191,8 +205,8 @@ function RelatedRoles({
       )}
       {rel.similar.length > 0 && (
         <section>
-          <h3 className="mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-            近いロール
+          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+            {t("detail.similar")}
           </h3>
           <ul>
             {rel.similar.map(([j, , shared]) => {
@@ -213,8 +227,8 @@ function RelatedRoles({
       )}
       {rel.complements.length > 0 && (
         <section>
-          <h3 className="mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
-            重複しないロール (同サービス)
+          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+            {t("detail.complements")}
           </h3>
           <ul>
             {rel.complements.map((j) => (
@@ -243,6 +257,7 @@ export function DetailPane({
   state: ExplorerState;
   roleIndex: number;
 }) {
+  const t = useT();
   const role = ds.roles[roleIndex];
   const parsed = useMemo(() => parseQuery(state.q), [state.q]);
   const filterActive = hasPermFilter(parsed);
@@ -265,7 +280,13 @@ export function DetailPane({
           </h2>
           <span className="text-sm text-gray-500">{role.title}</span>
           {role.stage && role.stage !== "GA" && (
-            <span className="rounded bg-gray-100 px-1 text-xs uppercase text-gray-500 dark:bg-gray-800">
+            <span
+              className={`rounded px-1 text-xs uppercase ${
+                role.stage === "DEPRECATED"
+                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                  : "bg-gray-100 text-gray-500 dark:bg-gray-800"
+              }`}
+            >
               {role.stage}
             </span>
           )}
@@ -280,7 +301,7 @@ export function DetailPane({
       <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
         <div className="flex min-h-0 flex-col">
           <p className="border-b border-gray-100 p-2 text-[10px] text-gray-400 dark:border-gray-800">
-            パーミッションをクリックすると、それを含むロールを逆引きします
+            {t("detail.clickToReverseLookup")}
           </p>
           {filterActive && (
             <PermFilterNotice
@@ -305,9 +326,9 @@ export function DetailPane({
         </div>
         <div className="min-h-0 overflow-y-auto">
           <h3 className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
-            関連ロール
+            {t("detail.relatedRoles")}
             <span className="ml-1 font-normal normal-case text-gray-400">
-              クリックで移動 / +比較 で差分表示
+              {t("detail.relatedRolesHint")}
             </span>
           </h3>
           <RelatedRoles ds={ds} state={state} roleIndex={roleIndex} />

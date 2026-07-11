@@ -118,6 +118,17 @@ async function apiFetch<T>(
   return parseJson<T>(await res.text());
 }
 
+// The newer basic roles are returned by roles.get but omitted from
+// roles.list, so they have to be fetched individually and merged in.
+const BASIC_ROLES = [
+  "roles/owner",
+  "roles/editor",
+  "roles/viewer",
+  "roles/admin",
+  "roles/writer",
+  "roles/reader",
+];
+
 async function fetchAllRoles(token: string): Promise<ApiRole[]> {
   const roles: ApiRole[] = [];
   let pageToken = "";
@@ -129,6 +140,13 @@ async function fetchAllRoles(token: string): Promise<ApiRole[]> {
     roles.push(...(data.roles ?? []));
     pageToken = data.nextPageToken ?? "";
   } while (pageToken);
+
+  const listed = new Set(roles.map((r) => r.name));
+  for (const name of BASIC_ROLES) {
+    if (listed.has(name)) continue;
+    // roles.get returns includedPermissions without a view parameter
+    roles.push(await apiFetch<ApiRole>(`${IAM_BASE}/${name}`, token));
+  }
   return roles;
 }
 
@@ -311,7 +329,7 @@ async function main() {
   const apiRoles = await fetchAllRoles(token);
   console.log(`  ${apiRoles.length} roles`);
 
-  const BASIC = new Set(["roles/owner", "roles/editor", "roles/viewer"]);
+  const BASIC = new Set(BASIC_ROLES);
   const permNames = new Set<string>();
   for (const r of apiRoles) {
     for (const p of r.includedPermissions ?? []) permNames.add(p);

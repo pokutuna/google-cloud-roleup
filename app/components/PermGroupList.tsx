@@ -1,8 +1,10 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
+import { Virtuoso } from "react-virtuoso";
 import { badgesForPermission, badgesForPermissions } from "../lib/badges";
 import { type Dataset, permParts } from "../lib/data";
-import { BadgeTag } from "./primitives";
+import { useT } from "../lib/i18n";
+import { BadgeTag, StageTag } from "./primitives";
 
 /** Threshold above which the list defaults to collapsed-by-resource. */
 const AUTO_COLLAPSE_THRESHOLD = 200;
@@ -81,6 +83,7 @@ function GroupRowView({
   row: GroupRow;
   onToggle: () => void;
 }) {
+  const t = useT();
   const names = row.permIds.map((id) => ds.permissions[id]);
   const badges = row.collapsed ? badgesForPermissions(names) : [];
   return (
@@ -89,8 +92,8 @@ function GroupRowView({
       onClick={onToggle}
       title={
         row.collapsed
-          ? "クリックで展開"
-          : `${row.key}.* にまとめる (クリックで畳む)`
+          ? t("permgroup.clickToExpand")
+          : t("permgroup.collapseInto", { key: row.key })
       }
       className="flex w-full items-center gap-1.5 border-t border-gray-100 px-2 py-0.5 text-left text-[11px] hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900 cursor-pointer"
     >
@@ -102,8 +105,7 @@ function GroupRowView({
         )}
       </span>
       <span className="font-mono text-gray-400 dark:text-gray-500">
-        {row.key}
-        <span>.*</span>
+        {row.key}.*
       </span>
       <span className="text-gray-400">{row.permIds.length}</span>
       {row.collapsed && badges.length > 0 && (
@@ -136,34 +138,27 @@ function FlatRowView({
       type="button"
       onClick={() => onSelectPerm(row.name)}
       title={meta?.description ?? row.name}
-      className="flex w-full items-baseline gap-1 border-b border-gray-50 py-0.5 pr-2 pl-2 text-left text-sm hover:bg-amber-50 dark:border-gray-900 dark:hover:bg-amber-950/40 cursor-pointer"
+      className="flex w-full items-baseline gap-1.5 border-b border-gray-50 py-0.5 pr-2 pl-2 text-left text-sm hover:bg-amber-50 dark:border-gray-900 dark:hover:bg-amber-950/40 cursor-pointer"
     >
       <span className="w-3.5 shrink-0" />
-      <span className="font-mono text-gray-400 dark:text-gray-500">
-        {parts.service}.
+      <span className="truncate font-mono">
+        <span className="text-gray-400 dark:text-gray-500">
+          {parts.service}.{hasResource ? `${parts.resource}.` : ""}
+        </span>
+        <span className="text-gray-700 dark:text-gray-300">{parts.verb}</span>
       </span>
-      {hasResource && (
-        <span className="font-mono text-gray-400 dark:text-gray-500">
-          {parts.resource}.
-        </span>
-      )}
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
-        <span className="font-mono text-gray-700 dark:text-gray-300">
-          {parts.verb}
-        </span>
-        {meta?.title && (
-          <span className="truncate text-xs text-gray-400">{meta.title}</span>
-        )}
-        {meta?.stage && (
-          <span className="text-[10px] uppercase text-gray-400">
-            {meta.stage}
-          </span>
-        )}
+        <StageTag stage={meta?.stage} />
         {badges.length > 0 && (
           <span className="flex shrink-0 gap-1">
             {badges.map((b) => (
               <BadgeTag key={b.id} badge={b} />
             ))}
+          </span>
+        )}
+        {meta?.title && (
+          <span className="ml-auto max-w-56 truncate text-right text-xs text-gray-300 dark:text-gray-600">
+            {meta.title}
           </span>
         )}
       </span>
@@ -188,6 +183,7 @@ export function PermGroupList({
   defaultOpen?: boolean;
   onSelectPerm: (permName: string) => void;
 }) {
+  const t = useT();
   const [collapsed, setCollapsed] = useState<Set<string>>(() =>
     defaultOpen !== true && permIds.length > AUTO_COLLAPSE_THRESHOLD
       ? new Set(allResourceKeys(ds, permIds))
@@ -219,7 +215,7 @@ export function PermGroupList({
   const rows = buildRows(ds, permIds, collapsed);
 
   return (
-    <div className="text-sm">
+    <div className="flex h-full flex-col text-sm">
       {permIds.length >= BULK_TOGGLE_MIN && (
         <div className="flex justify-end gap-2 border-b border-gray-100 px-2 py-0.5 text-[10px] dark:border-gray-800">
           <button
@@ -227,34 +223,33 @@ export function PermGroupList({
             onClick={collapseAll}
             className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
           >
-            すべて畳む
+            {t("permgroup.collapseAll")}
           </button>
           <button
             type="button"
             onClick={expandAll}
             className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
           >
-            すべて展開
+            {t("permgroup.expandAll")}
           </button>
         </div>
       )}
-      {rows.map((row) =>
-        row.type === "group" ? (
-          <GroupRowView
-            key={row.key}
-            ds={ds}
-            row={row}
-            onToggle={() => toggle(row.key)}
-          />
-        ) : (
-          <FlatRowView
-            key={row.id}
-            ds={ds}
-            row={row}
-            onSelectPerm={onSelectPerm}
-          />
-        ),
-      )}
+      <Virtuoso
+        className="min-h-0 flex-1"
+        totalCount={rows.length}
+        computeItemKey={(i) => {
+          const row = rows[i];
+          return row.type === "group" ? `g:${row.key}` : `f:${row.id}`;
+        }}
+        itemContent={(i) => {
+          const row = rows[i];
+          return row.type === "group" ? (
+            <GroupRowView ds={ds} row={row} onToggle={() => toggle(row.key)} />
+          ) : (
+            <FlatRowView ds={ds} row={row} onSelectPerm={onSelectPerm} />
+          );
+        }}
+      />
     </div>
   );
 }

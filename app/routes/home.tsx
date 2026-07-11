@@ -7,6 +7,7 @@ import { HeaderBar } from "../components/HeaderBar";
 import { ReversePane } from "../components/ReversePane";
 import { RoleList } from "../components/RoleList";
 import { isServiceAgent, loadDataset } from "../lib/data";
+import { detectLang, getMessage, useT } from "../lib/i18n";
 import { filterRoles, parseQuery } from "../lib/search";
 import { useExplorerState } from "../lib/url-state";
 import type { Route } from "./+types/home";
@@ -20,8 +21,7 @@ export function meta(_: Route.MetaArgs) {
     { title: "Google Cloud RoleUp" },
     {
       name: "description",
-      content:
-        "Google Cloud IAM のロールとパーミッションを探す・見る・比べるエクスプローラ",
+      content: getMessage(detectLang(), "app.metaDescription"),
     },
   ];
 }
@@ -31,6 +31,7 @@ export async function clientLoader(_: Route.ClientLoaderArgs) {
 }
 
 export default function Home({ loaderData: ds }: Route.ComponentProps) {
+  const t = useT();
   const state = useExplorerState();
   const [expanded, setExpanded] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
@@ -145,8 +146,8 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              title="リストを表示"
-              aria-label="リストを表示"
+              title={t("home.showList")}
+              aria-label={t("home.showList")}
               className="absolute top-2 left-2 z-20 rounded border border-gray-200 bg-white p-1 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:hover:text-gray-300 cursor-pointer"
             >
               <PanelLeftOpen size={14} />

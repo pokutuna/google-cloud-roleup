@@ -8,9 +8,11 @@ import {
   serviceDisplayName,
   shortRoleName,
 } from "../lib/data";
+import { useT } from "../lib/i18n";
 import { rolesWithPermission } from "../lib/search";
 import type { ExplorerState } from "../lib/url-state";
-import { BadgeTag, MonoName } from "./primitives";
+import { MAX_COMPARE_ROLES } from "./colors";
+import { BadgeTag, MonoName, StageTag } from "./primitives";
 
 type SortKey = "count-asc" | "count-desc" | "name";
 
@@ -41,6 +43,7 @@ function SortToggle({
   sort: SortKey;
   setSort: (s: SortKey) => void;
 }) {
+  const t = useT();
   const countActive = sort === "count-asc" || sort === "count-desc";
   return (
     <div className="flex items-center gap-1 text-xs">
@@ -55,7 +58,7 @@ function SortToggle({
             : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
         }`}
       >
-        パーミッション数
+        {t("reverse.sortByCount")}
         {countActive &&
           (sort === "count-asc" ? (
             <ArrowUpNarrowWide size={12} className="inline-block" />
@@ -72,7 +75,7 @@ function SortToggle({
             : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
         }`}
       >
-        名前
+        {t("reverse.sortByName")}
       </button>
     </div>
   );
@@ -91,6 +94,7 @@ export function ReversePane({
   state: ExplorerState;
   permId: number;
 }) {
+  const t = useT();
   const name = ds.permissions[permId];
   const meta = ds.permMeta[permId];
   const parts = permParts(name);
@@ -136,16 +140,20 @@ export function ReversePane({
           {badges.map((b) => (
             <BadgeTag key={b.id} badge={b} />
           ))}
-          {meta?.stage && (
-            <span className="text-xs uppercase text-gray-400">
-              {meta.stage}
-            </span>
-          )}
+          <StageTag stage={meta?.stage} />
           <button
             type="button"
             onClick={() => state.remove({ type: "p", name })}
-            title={hasRoleSelected ? "閉じてロール表示に戻る" : "閉じる"}
-            aria-label={hasRoleSelected ? "閉じてロール表示に戻る" : "閉じる"}
+            title={
+              hasRoleSelected
+                ? t("reverse.closeBackToRole")
+                : t("reverse.close")
+            }
+            aria-label={
+              hasRoleSelected
+                ? t("reverse.closeBackToRole")
+                : t("reverse.close")
+            }
             className="ml-auto rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 cursor-pointer dark:hover:bg-gray-800 dark:hover:text-gray-300"
           >
             <X size={16} className="inline-block" />
@@ -162,7 +170,7 @@ export function ReversePane({
       <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
         <div className="min-h-0 overflow-y-auto p-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            サービス
+            {t("reverse.service")}
           </h3>
           <button
             type="button"
@@ -173,7 +181,7 @@ export function ReversePane({
             <span className="font-mono text-xs">({parts.service})</span>
           </button>
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-gray-400">
-            同じリソースのパーミッション ({parts.group}.*)
+            {t("reverse.sameResourcePerms", { group: parts.group })}
           </h3>
           <ul className="mt-1">
             {neighbors.map((id) => (
@@ -199,18 +207,20 @@ export function ReversePane({
         <div className="min-h-0 overflow-y-auto p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              このパーミッションを含むロール ({visibleIdxs.length})
+              {t("reverse.rolesWithPermission", { n: visibleIdxs.length })}
             </h3>
             <SortToggle sort={sort} setSort={setSort} />
           </div>
           {hiddenServiceAgentCount > 0 && (
             <p className="mt-1 text-xs text-gray-400">
-              サービスエージェント {hiddenServiceAgentCount} 件を非表示
+              {t("reverse.hiddenServiceAgents", {
+                n: hiddenServiceAgentCount,
+              })}
             </p>
           )}
           {[
-            ["事前定義ロール", predefined],
-            ["基本ロール", basics],
+            [t("reverse.predefinedRoles"), predefined],
+            [t("reverse.basicRoles"), basics],
           ].map(([label, idxs]) =>
             (idxs as number[]).length === 0 ? null : (
               <div key={label as string} className="mt-2">
@@ -221,6 +231,12 @@ export function ReversePane({
                   {(idxs as number[]).map((i) => {
                     const role = ds.roles[i];
                     const short = shortRoleName(role.name);
+                    const selectedRoles = state.selection.filter(
+                      (it) => it.type === "r",
+                    );
+                    const capBlocked =
+                      selectedRoles.length >= MAX_COMPARE_ROLES &&
+                      !selectedRoles.some((it) => it.name === short);
                     return (
                       <li
                         key={role.name}
@@ -242,12 +258,24 @@ export function ReversePane({
                           </span>
                           <button
                             type="button"
+                            disabled={capBlocked}
                             onClick={() =>
                               state.toggle({ type: "r", name: short })
                             }
-                            className="absolute inset-y-0 right-0 flex items-center rounded border border-gray-300 bg-white px-1.5 text-xs text-gray-500 opacity-0 transition-opacity hover:border-purple-400 hover:text-purple-600 group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:bg-gray-950 dark:hover:text-purple-300 cursor-pointer"
+                            title={
+                              capBlocked
+                                ? t("rolelist.maxCompare", {
+                                    n: MAX_COMPARE_ROLES,
+                                  })
+                                : undefined
+                            }
+                            className={`absolute inset-y-0 right-0 flex items-center whitespace-nowrap rounded border border-gray-300 bg-white px-1.5 text-xs text-gray-500 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:bg-gray-950 ${
+                              capBlocked
+                                ? "opacity-40 group-hover:opacity-40"
+                                : "hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 cursor-pointer"
+                            }`}
                           >
-                            +比較
+                            {t("detail.addCompare")}
                           </button>
                         </span>
                       </li>

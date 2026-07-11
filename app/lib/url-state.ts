@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router";
+import { MAX_COMPARE_ROLES } from "../components/colors";
 
 /** r: short role name ("bigquery.user"), p: permission name */
 export interface SelItem {
@@ -91,11 +92,14 @@ export function useExplorerState() {
   const toggle = useCallback(
     (item: SelItem) => {
       const rest = selection.filter((it) => !sameItem(it, item));
-      const next =
-        rest.length < selection.length
-          ? rest
-          : [...selection.filter((it) => it.type === "r"), item];
-      update({ sel: next }, false);
+      if (rest.length < selection.length) {
+        update({ sel: rest }, false);
+        return;
+      }
+      const roles = selection.filter((it) => it.type === "r");
+      // comparison is capped at the number of distinguishable series colors
+      if (item.type === "r" && roles.length >= MAX_COMPARE_ROLES) return;
+      update({ sel: [...roles, item] }, false);
     },
     [selection, update],
   );

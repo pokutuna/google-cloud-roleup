@@ -32,48 +32,48 @@ export interface SeriesColor {
   checkbox: string;
 }
 
+/**
+ * Google rainbow first (blue / red / green — yellow is skipped because it is
+ * illegible as text and collides with the permission amber), then fuchsia.
+ * All hues stay clear of the entity colors (teal / purple / amber).
+ */
 const SERIES_COLORS: SeriesColor[] = [
   {
-    name: "purple",
-    text: "text-purple-700 dark:text-purple-300",
-    border: "border-purple-500",
-    bg: "bg-purple-500",
-    bgSoft: "bg-purple-200 dark:bg-purple-900",
-    checkbox: "accent-purple-600",
+    name: "blue",
+    text: "text-blue-700 dark:text-blue-300",
+    border: "border-blue-500",
+    bg: "bg-blue-500",
+    bgSoft: "bg-blue-200 dark:bg-blue-900",
+    checkbox: "accent-blue-600",
   },
   {
-    name: "sky",
-    text: "text-sky-700 dark:text-sky-300",
-    border: "border-sky-500",
-    bg: "bg-sky-500",
-    bgSoft: "bg-sky-200 dark:bg-sky-900",
-    checkbox: "accent-sky-600",
+    name: "red",
+    text: "text-red-700 dark:text-red-300",
+    border: "border-red-500",
+    bg: "bg-red-500",
+    bgSoft: "bg-red-200 dark:bg-red-900",
+    checkbox: "accent-red-600",
   },
   {
-    name: "rose",
-    text: "text-rose-700 dark:text-rose-300",
-    border: "border-rose-500",
-    bg: "bg-rose-500",
-    bgSoft: "bg-rose-200 dark:bg-rose-900",
-    checkbox: "accent-rose-600",
+    name: "green",
+    text: "text-green-700 dark:text-green-300",
+    border: "border-green-600",
+    bg: "bg-green-600",
+    bgSoft: "bg-green-200 dark:bg-green-900",
+    checkbox: "accent-green-600",
   },
   {
-    name: "emerald",
-    text: "text-emerald-700 dark:text-emerald-300",
-    border: "border-emerald-500",
-    bg: "bg-emerald-500",
-    bgSoft: "bg-emerald-200 dark:bg-emerald-900",
-    checkbox: "accent-emerald-600",
-  },
-  {
-    name: "orange",
-    text: "text-orange-700 dark:text-orange-300",
-    border: "border-orange-500",
-    bg: "bg-orange-500",
-    bgSoft: "bg-orange-200 dark:bg-orange-900",
-    checkbox: "accent-orange-600",
+    name: "fuchsia",
+    text: "text-fuchsia-700 dark:text-fuchsia-300",
+    border: "border-fuchsia-500",
+    bg: "bg-fuchsia-500",
+    bgSoft: "bg-fuchsia-200 dark:bg-fuchsia-900",
+    checkbox: "accent-fuchsia-600",
   },
 ];
+
+/** Comparison is capped at the number of distinguishable series colors. */
+export const MAX_COMPARE_ROLES = SERIES_COLORS.length;
 
 export function seriesColor(index: number): SeriesColor {
   return SERIES_COLORS[index % SERIES_COLORS.length];

@@ -8,6 +8,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { LangProvider, useT } from "./lib/i18n";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -19,7 +20,7 @@ export const links: Route.LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400;500;700&display=swap",
   },
 ];
 
@@ -42,13 +43,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  return (
+    <LangProvider>
+      <Outlet />
+    </LangProvider>
+  );
 }
 
 export function HydrateFallback() {
   return (
+    <LangProvider>
+      <HydrateFallbackContent />
+    </LangProvider>
+  );
+}
+
+function HydrateFallbackContent() {
+  const t = useT();
+  return (
     <div className="flex h-dvh items-center justify-center text-sm text-gray-400">
-      IAM ロールデータを読み込み中...
+      {t("app.loading")}
     </div>
   );
 }

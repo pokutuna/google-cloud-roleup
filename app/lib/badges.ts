@@ -1,38 +1,39 @@
 import { permParts } from "./data";
+import type { MsgKey } from "./i18n";
 
 export type BadgeTone = "danger" | "warn" | "info";
 
 export interface Badge {
   id: string;
-  label: string;
+  labelKey: MsgKey;
   tone: BadgeTone;
-  hint: string;
+  hintKey: MsgKey;
 }
 
 const BADGES: Record<string, Badge> = {
   iam: {
     id: "iam",
-    label: "IAM変更",
+    labelKey: "badge.iam.label",
     tone: "danger",
-    hint: "setIamPolicy を含む: このリソースのアクセス権設定を書き換えられる (権限昇格につながる)",
+    hintKey: "badge.iam.hint",
   },
   impersonate: {
     id: "impersonate",
-    label: "なりすまし",
+    labelKey: "badge.impersonate.label",
     tone: "danger",
-    hint: "サービスアカウントの権限を借用できる (actAs / アクセストークン取得 / 署名)",
+    hintKey: "badge.impersonate.hint",
   },
   delete: {
     id: "delete",
-    label: "削除系",
+    labelKey: "badge.delete.label",
     tone: "warn",
-    hint: "delete / purge などリソースを削除する操作を含む",
+    hintKey: "badge.delete.hint",
   },
   dataRead: {
     id: "dataRead",
-    label: "データ閲覧",
+    labelKey: "badge.dataRead.label",
     tone: "info",
-    hint: "getData / read / export などデータの中身を読み取る操作を含む",
+    hintKey: "badge.dataRead.hint",
   },
 };
 
@@ -65,7 +66,10 @@ export function badgesForPermission(permName: string): Badge[] {
 /** Max number of matched permission names to list in a badge's tooltip. */
 const MAX_MATCHED = 8;
 
-export type BadgeWithMatches = Badge & { matched?: string[] };
+export type BadgeWithMatches = Badge & {
+  matched?: string[];
+  overflowCount?: number;
+};
 
 /**
  * Distinct badges across a set of permissions, danger first. Each badge
@@ -88,13 +92,10 @@ export function badgesForPermissions(
     .map(([id, names]) => {
       const badge = BADGES[id];
       const matched =
-        names.length > MAX_MATCHED
-          ? [
-              ...names.slice(0, MAX_MATCHED),
-              `ほか ${names.length - MAX_MATCHED} 件`,
-            ]
-          : names;
-      return { ...badge, matched };
+        names.length > MAX_MATCHED ? names.slice(0, MAX_MATCHED) : names;
+      const overflowCount =
+        names.length > MAX_MATCHED ? names.length - MAX_MATCHED : undefined;
+      return { ...badge, matched, overflowCount };
     })
     .sort((a, b) => order.indexOf(a.tone) - order.indexOf(b.tone));
 }

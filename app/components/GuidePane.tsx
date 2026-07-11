@@ -1,4 +1,5 @@
 import { ALL_BADGES } from "../lib/badges";
+import { type MsgKey, useT } from "../lib/i18n";
 import type { ExplorerState } from "../lib/url-state";
 import { BadgeTag, EntityChip } from "./primitives";
 
@@ -7,53 +8,55 @@ const SINGLE_EXAMPLES: {
   q: string;
   kind: "s" | "r" | "p";
   label: string;
-  desc: string;
+  descKey: MsgKey;
 }[] = [
   {
     q: "s:bigquery ",
     kind: "s",
     label: "bigquery",
-    desc: "サービスでロールを絞り込む",
+    descKey: "guide.exampleService",
   },
   {
     q: "r:bigquery.user ",
     kind: "r",
     label: "bigquery.user",
-    desc: "ロールを名前で探す",
+    descKey: "guide.exampleRole",
   },
   {
     q: "p:tables.getData ",
     kind: "p",
     label: "tables.getData",
-    desc: "パーミッションから逆引きする",
+    descKey: "guide.examplePermission",
   },
 ];
 
 /** Compound (multi-qualifier) example rendered as a plain query button. */
 const COMPOUND_EXAMPLE = {
   q: "s:bigquery p:tables ",
-  desc: "組み合わせ (AND) で絞り込む",
+  descKey: "guide.exampleCompound" as MsgKey,
 };
 
 /** Empty-selection right pane: a short how-to with clickable examples. */
 export function GuidePane({ state }: { state: ExplorerState }) {
+  const t = useT();
   return (
     <div className="mx-auto flex h-full max-w-lg flex-col justify-center gap-6 p-8 text-sm text-gray-600 dark:text-gray-300">
       <div>
-        <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-          IAM ロールを探す・見る・比べる
-        </h2>
+        <div className="mb-6">
+          <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+            Google Cloud RoleUp
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">{t("app.subtitle")}</p>
+        </div>
         <ul className="mt-3 list-inside list-disc space-y-1.5">
-          <li>左のロールをクリックすると、詳細と関連ロールを表示します</li>
-          <li>チェックボックスで 2 つ以上選ぶと、差分を比較します</li>
-          <li>
-            検索やチップの操作はすべて URL に載るので、そのまま共有できます
-          </li>
+          <li>{t("guide.bullet1")}</li>
+          <li>{t("guide.bullet2")}</li>
+          <li>{t("guide.bullet3")}</li>
         </ul>
       </div>
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          検索の例 (クリックで入力)
+          {t("guide.searchExamples")}
         </h3>
         <ul className="mt-2 space-y-1.5">
           {SINGLE_EXAMPLES.map((ex) => (
@@ -63,7 +66,7 @@ export function GuidePane({ state }: { state: ExplorerState }) {
                 label={ex.label}
                 onClick={() => state.setQ(ex.q)}
               />
-              <span className="text-gray-400">{ex.desc}</span>
+              <span className="text-gray-400">{t(ex.descKey)}</span>
             </li>
           ))}
           <li className="flex items-center gap-2">
@@ -74,19 +77,19 @@ export function GuidePane({ state }: { state: ExplorerState }) {
             >
               {COMPOUND_EXAMPLE.q.trim()}
             </button>
-            <span className="text-gray-400">{COMPOUND_EXAMPLE.desc}</span>
+            <span className="text-gray-400">{t(COMPOUND_EXAMPLE.descKey)}</span>
           </li>
         </ul>
       </div>
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          バッジの意味
+          {t("guide.badgeMeaning")}
         </h3>
         <ul className="mt-2 space-y-1.5">
           {ALL_BADGES.map((badge) => (
             <li key={badge.id} className="flex items-baseline gap-2">
               <BadgeTag badge={badge} />
-              <span className="text-gray-400">{badge.hint}</span>
+              <span className="text-gray-400">{t(badge.hintKey)}</span>
             </li>
           ))}
         </ul>
