@@ -72,6 +72,21 @@ export function useExplorerState() {
     [update],
   );
 
+  /** permission click: keep selected roles, replace the p: anchor */
+  const anchorPerm = useCallback(
+    (name: string) =>
+      update(
+        {
+          sel: [
+            ...selection.filter((it) => it.type === "r"),
+            { type: "p", name },
+          ],
+        },
+        false,
+      ),
+    [selection, update],
+  );
+
   /** checkbox: add to / remove from the comparison set (roles only) */
   const toggle = useCallback(
     (item: SelItem) => {
@@ -103,6 +118,7 @@ export function useExplorerState() {
     setQ,
     selection,
     select,
+    anchorPerm,
     toggle,
     remove,
     clear,

@@ -2,39 +2,41 @@ import { ALL_BADGES } from "../lib/badges";
 import type { ExplorerState } from "../lib/url-state";
 import { BadgeTag, EntityChip } from "./primitives";
 
+/** Single-qualifier example rendered as an EntityChip. */
+const SINGLE_EXAMPLES: {
+  q: string;
+  kind: "s" | "r" | "p";
+  label: string;
+  desc: string;
+}[] = [
+  {
+    q: "s:bigquery ",
+    kind: "s",
+    label: "bigquery",
+    desc: "サービスでロールを絞り込む",
+  },
+  {
+    q: "r:bigquery.user ",
+    kind: "r",
+    label: "bigquery.user",
+    desc: "ロールを名前で探す",
+  },
+  {
+    q: "p:tables.getData ",
+    kind: "p",
+    label: "tables.getData",
+    desc: "パーミッションから逆引きする",
+  },
+];
+
+/** Compound (multi-qualifier) example rendered as a plain query button. */
+const COMPOUND_EXAMPLE = {
+  q: "s:bigquery p:tables ",
+  desc: "組み合わせ (AND) で絞り込む",
+};
+
 /** Empty-selection right pane: a short how-to with clickable examples. */
 export function GuidePane({ state }: { state: ExplorerState }) {
-  const examples: {
-    q: string;
-    kind: "s" | "r" | "p";
-    label: string;
-    desc: string;
-  }[] = [
-    {
-      q: "s:bigquery ",
-      kind: "s",
-      label: "s:bigquery",
-      desc: "サービスでロールを絞り込む",
-    },
-    {
-      q: "r:bigquery.user ",
-      kind: "r",
-      label: "r:bigquery.user",
-      desc: "ロールを名前で探す",
-    },
-    {
-      q: "p:tables.getData ",
-      kind: "p",
-      label: "p:tables.getData",
-      desc: "パーミッションから逆引きする",
-    },
-    {
-      q: "s:bigquery p:tables ",
-      kind: "s",
-      label: "s:bigquery p:tables",
-      desc: "組み合わせ (AND) で絞り込む",
-    },
-  ];
   return (
     <div className="mx-auto flex h-full max-w-lg flex-col justify-center gap-6 p-8 text-sm text-gray-600 dark:text-gray-300">
       <div>
@@ -54,7 +56,7 @@ export function GuidePane({ state }: { state: ExplorerState }) {
           検索の例 (クリックで入力)
         </h3>
         <ul className="mt-2 space-y-1.5">
-          {examples.map((ex) => (
+          {SINGLE_EXAMPLES.map((ex) => (
             <li key={ex.q} className="flex items-center gap-2">
               <EntityChip
                 kind={ex.kind}
@@ -64,6 +66,16 @@ export function GuidePane({ state }: { state: ExplorerState }) {
               <span className="text-gray-400">{ex.desc}</span>
             </li>
           ))}
+          <li className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => state.setQ(COMPOUND_EXAMPLE.q)}
+              className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700 hover:underline cursor-pointer dark:bg-gray-800 dark:text-gray-300"
+            >
+              {COMPOUND_EXAMPLE.q.trim()}
+            </button>
+            <span className="text-gray-400">{COMPOUND_EXAMPLE.desc}</span>
+          </li>
         </ul>
       </div>
       <div>

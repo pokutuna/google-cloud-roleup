@@ -1,4 +1,4 @@
-import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { badgesForPermission } from "../lib/badges";
 import {
@@ -97,6 +97,8 @@ export function ReversePane({
   const badges = badgesForPermission(name);
   const [sort, setSort] = useState<SortKey>("count-asc");
 
+  const hasRoleSelected = state.selection.some((it) => it.type === "r");
+
   const roleIdxs = useMemo(() => rolesWithPermission(ds, permId), [ds, permId]);
   const neighbors = useMemo(() => {
     const ids: number[] = [];
@@ -139,6 +141,15 @@ export function ReversePane({
               {meta.stage}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => state.remove({ type: "p", name })}
+            title={hasRoleSelected ? "閉じてロール表示に戻る" : "閉じる"}
+            aria-label={hasRoleSelected ? "閉じてロール表示に戻る" : "閉じる"}
+            className="ml-auto rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 cursor-pointer dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          >
+            <X size={16} className="inline-block" />
+          </button>
         </div>
         {(meta?.title || meta?.description) && (
           <p className="mt-1 text-sm text-gray-500">
@@ -169,9 +180,7 @@ export function ReversePane({
               <li key={id}>
                 <button
                   type="button"
-                  onClick={() =>
-                    state.select({ type: "p", name: ds.permissions[id] })
-                  }
+                  onClick={() => state.anchorPerm(ds.permissions[id])}
                   className="flex w-full items-baseline gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
                 >
                   <span className="font-mono text-gray-700 dark:text-gray-300">
@@ -227,18 +236,20 @@ export function ReversePane({
                         >
                           <MonoName name={short} />
                         </button>
-                        <span className="shrink-0 text-xs text-gray-400">
-                          {role.permIds.length}
+                        <span className="relative flex h-5 shrink-0 items-center">
+                          <span className="text-xs text-gray-400 transition-opacity group-hover:opacity-0">
+                            {role.permIds.length}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              state.toggle({ type: "r", name: short })
+                            }
+                            className="absolute inset-y-0 right-0 flex items-center rounded border border-gray-300 bg-white px-1.5 text-xs text-gray-500 opacity-0 transition-opacity hover:border-purple-400 hover:text-purple-600 group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:bg-gray-950 dark:hover:text-purple-300 cursor-pointer"
+                          >
+                            +比較
+                          </button>
                         </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            state.toggle({ type: "r", name: short })
-                          }
-                          className="shrink-0 rounded border border-gray-300 px-1.5 text-xs text-gray-500 opacity-0 transition-opacity hover:border-purple-400 hover:text-purple-600 group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:hover:text-purple-300 cursor-pointer"
-                        >
-                          +比較
-                        </button>
                       </li>
                     );
                   })}

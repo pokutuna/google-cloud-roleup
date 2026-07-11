@@ -1,30 +1,23 @@
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Columns2,
-  Table as TableIcon,
-} from "lucide-react";
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
 import { badgesForPermissions } from "../lib/badges";
 import { type Dataset, permParts, shortRoleName } from "../lib/data";
+import {
+  filterPermIds,
+  hasPermFilter,
+  type ParsedQuery,
+  parseQuery,
+  stripPermQualifiers,
+} from "../lib/search";
 import type { ExplorerState } from "../lib/url-state";
 import { COMMON_SECTION, seriesColor } from "./colors";
-import { PermGroupList } from "./PermGroupList";
-import { BadgeTag, MonoName } from "./primitives";
+import { BadgeTag, MonoName, PermFilterNotice } from "./primitives";
 
-interface Section {
-  key: string;
-  label: string;
-  permIds: number[];
-  textClass: string;
-  barClass: string;
-}
+type SortMode = "diff" | "name";
 
 /**
  * Membership-driven sections: permId -> bitmask of which roles (by position)
- * hold it. Reused by both the diff view (2 roles) and the matrix view
- * (grouping / common-row detection for 3+ roles).
+ * hold it. Drives both the "権限名順" grouping and the "差分順" grouping.
  */
 function computeMasks(ds: Dataset, roleIndexes: number[]): Map<number, number> {
   const masks = new Map<number, number>();
@@ -36,36 +29,14 @@ function computeMasks(ds: Dataset, roleIndexes: number[]): Map<number, number> {
   return masks;
 }
 
-function computeDiffSections(ds: Dataset, roleIndexes: number[]): Section[] {
-  const masks = computeMasks(ds, roleIndexes);
-  const byMask = new Map<number, number[]>();
-  for (const [id, mask] of masks) {
-    const list = byMask.get(mask);
-    if (list) list.push(id);
-    else byMask.set(mask, [id]);
+function popcount(mask: number): number {
+  let n = mask;
+  let count = 0;
+  while (n) {
+    count += n & 1;
+    n >>= 1;
   }
-  const full = 0b11;
-  const name = (i: number) => shortRoleName(ds.roles[roleIndexes[i]].name);
-
-  const onlySections = roleIndexes.map((_, i) => {
-    const c = seriesColor(i);
-    return {
-      key: `only-${i}`,
-      label: `${name(i)} のみ`,
-      permIds: (byMask.get(1 << i) ?? []).sort((a, b) => a - b),
-      textClass: c.text,
-      barClass: c.bg,
-    };
-  });
-  const common: Section = {
-    key: "common",
-    label: "共通",
-    permIds: (byMask.get(full) ?? []).sort((a, b) => a - b),
-    textClass: COMMON_SECTION.text,
-    barClass: COMMON_SECTION.bg,
-  };
-
-  return [onlySections[0], common, onlySections[1]];
+  return count;
 }
 
 /** Group key for the matrix's leftmost column, and its rollup permIds. */
@@ -87,20 +58,93 @@ function groupMatrixRows(ds: Dataset, permIds: number[]): MatrixGroup[] {
     .map(([key, ids]) => ({ key, permIds: ids.sort((a, b) => a - b) }));
 }
 
+/** Dataset-wide "service.resource" group -> permIds, for filling in rows
+ * that no selected role holds when "未保持の権限も表示" is enabled. */
+function groupToPermIdsMap(ds: Dataset): Map<string, number[]> {
+  const map = new Map<string, number[]>();
+  for (let id = 0; id < ds.permissions.length; id++) {
+    const key = permParts(ds.permissions[id]).group;
+    const list = map.get(key);
+    if (list) list.push(id);
+    else map.set(key, [id]);
+  }
+  return map;
+}
+
+/** A single colored fragment of a section header label. */
+interface LabelPart {
+  text: string;
+  className: string;
+}
+
+/** A "差分順" section: all perms sharing the same holder-bitmask (or the
+ * synthetic "unheld by anyone" section, mask = -1). */
+interface DiffSection {
+  key: string;
+  mask: number;
+  parts: LabelPart[];
+  permIds: number[];
+  /** always render this section's header, even when permIds is empty */
+  alwaysShow: boolean;
+}
+
+function labelPartsForMask(
+  roleIndexes: number[],
+  ds: Dataset,
+  mask: number,
+): LabelPart[] {
+  const n = roleIndexes.length;
+  const full = (1 << n) - 1;
+  if (mask === full) {
+    return [{ text: "共通", className: COMMON_SECTION.text }];
+  }
+  const names = roleIndexes
+    .map((roleIdx, i) => ({ i, name: shortRoleName(ds.roles[roleIdx].name) }))
+    .filter(({ i }) => mask & (1 << i));
+  if (names.length === 1) {
+    return [
+      {
+        text: `${names[0].name} のみ`,
+        className: seriesColor(names[0].i).text,
+      },
+    ];
+  }
+  const parts: LabelPart[] = [];
+  names.forEach(({ i, name }, idx) => {
+    if (idx > 0) {
+      parts.push({
+        text: " · ",
+        className: "text-gray-400 dark:text-gray-600",
+      });
+    }
+    parts.push({ text: name, className: seriesColor(i).text });
+  });
+  return parts;
+}
+
 function MatrixView({
   ds,
   state,
   roleIndexes,
+  parsed,
 }: {
   ds: Dataset;
   state: ExplorerState;
   roleIndexes: number[];
+  parsed: ParsedQuery;
 }) {
   const n = roleIndexes.length;
   const masks = useMemo(() => computeMasks(ds, roleIndexes), [ds, roleIndexes]);
   const full = (1 << n) - 1;
   const [showCommon, setShowCommon] = useState(false);
+  const [showUnheld, setShowUnheld] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [sortMode, setSortMode] = useState<SortMode>(n === 2 ? "diff" : "name");
+  const [sortModeForN, setSortModeForN] = useState(n);
+  if (sortModeForN !== n) {
+    setSortModeForN(n);
+    setSortMode(n === 2 ? "diff" : "name");
+  }
 
   const commonCount = useMemo(() => {
     let c = 0;
@@ -109,19 +153,125 @@ function MatrixView({
   }, [masks, full]);
 
   const permIds = useMemo(() => {
-    const ids = [...masks.keys()];
+    const ids = filterPermIds(ds, [...masks.keys()], parsed);
     if (showCommon) return ids.sort((a, b) => a - b);
     return ids.filter((id) => masks.get(id) !== full).sort((a, b) => a - b);
-  }, [masks, full, showCommon]);
+  }, [ds, masks, full, showCommon, parsed]);
 
-  const groups = useMemo(() => groupMatrixRows(ds, permIds), [ds, permIds]);
+  const groupToPermIds = useMemo(() => groupToPermIdsMap(ds), [ds]);
 
-  const totalRows = permIds.length;
-  const groupCount = groups.length;
+  // dataset-wide permissions in groups touched by permIds, held by nobody
+  // selected — used both to append "unheld" rows within name-order groups,
+  // and to build the standalone "未保持" section in diff-order.
+  const unheldPermIds = useMemo(() => {
+    if (!showUnheld) return [] as number[];
+    const touchedGroups = new Set(
+      permIds.map((id) => permParts(ds.permissions[id]).group),
+    );
+    const present = new Set(permIds);
+    const all: number[] = [];
+    for (const key of touchedGroups) {
+      const ids = groupToPermIds.get(key) ?? [];
+      for (const id of ids) {
+        if (!masks.has(id) && !present.has(id)) all.push(id);
+      }
+    }
+    return filterPermIds(ds, all, parsed);
+  }, [ds, permIds, showUnheld, groupToPermIds, masks, parsed]);
+
+  const groups = useMemo(() => {
+    const base = groupMatrixRows(ds, permIds);
+    if (!showUnheld) return base;
+    // for each group already shown, add dataset-wide permissions of that
+    // group that none of the selected roles hold (all-"-" rows)
+    return base.map((g) => {
+      const key = permParts(ds.permissions[g.permIds[0]]).group;
+      const all = groupToPermIds.get(key) ?? [];
+      const present = new Set(g.permIds);
+      const unheld = filterPermIds(
+        ds,
+        all.filter((id) => !masks.has(id) && !present.has(id)),
+        parsed,
+      );
+      if (unheld.length === 0) return g;
+      return {
+        key: g.key,
+        permIds: [...g.permIds, ...unheld].sort((a, b) => a - b),
+      };
+    });
+  }, [ds, permIds, showUnheld, groupToPermIds, masks, parsed]);
+
+  // "差分順": group permIds by holder-mask. Section order: 共通 (when shown)
+  // first, then single-role sections and combination sections by popcount asc
+  // then mask asc (A のみ -> B のみ -> ... -> A·B -> ... -> B·C), and finally
+  // a synthetic "unheld by anyone" section (mask = -1) at the very end.
+  const diffSections = useMemo<DiffSection[]>(() => {
+    const byMask = new Map<number, number[]>();
+    for (const id of permIds) {
+      const mask = masks.get(id) ?? 0;
+      const list = byMask.get(mask);
+      if (list) list.push(id);
+      else byMask.set(mask, [id]);
+    }
+    const singleMasks = roleIndexes.map((_, i) => 1 << i);
+    const presentMasks = new Set(byMask.keys());
+    for (const m of singleMasks) presentMasks.add(m);
+    if (showCommon) presentMasks.add(full);
+
+    const nonCommonMasks = [...presentMasks]
+      .filter((m) => m !== full)
+      .sort((a, b) => {
+        const pa = popcount(a);
+        const pb = popcount(b);
+        return pa !== pb ? pa - pb : a - b;
+      });
+    const orderedMasks = showCommon
+      ? [full, ...nonCommonMasks]
+      : nonCommonMasks;
+
+    const isSingle = (mask: number) => popcount(mask) === 1;
+    const sections: DiffSection[] = orderedMasks.map((mask) => {
+      const parts = labelPartsForMask(roleIndexes, ds, mask);
+      return {
+        key: `sec:${mask}`,
+        mask,
+        parts,
+        permIds: (byMask.get(mask) ?? []).sort((a, b) => a - b),
+        alwaysShow: mask === full || isSingle(mask),
+      };
+    });
+    if (unheldPermIds.length > 0) {
+      sections.push({
+        key: "sec:-1",
+        mask: -1,
+        parts: [{ text: "未保持", className: "text-gray-400" }],
+        permIds: [...unheldPermIds].sort((a, b) => a - b),
+        alwaysShow: false,
+      });
+    }
+    return sections;
+  }, [ds, roleIndexes, permIds, masks, unheldPermIds, showCommon, full]);
+
+  const totalRows = useMemo(() => {
+    if (sortMode === "name") {
+      return groups.reduce((sum, g) => sum + g.permIds.length, 0);
+    }
+    return diffSections.reduce((sum, s) => sum + s.permIds.length, 0);
+  }, [sortMode, groups, diffSections]);
+
+  const groupCount = useMemo(() => {
+    if (sortMode === "name") return groups.length;
+    return diffSections.reduce(
+      (sum, s) => sum + groupMatrixRows(ds, s.permIds).length,
+      0,
+    );
+  }, [sortMode, groups, diffSections, ds]);
+
   // default: expand groups when the overall row count is small enough to scan
   const defaultOpen = totalRows <= 60;
   const isOpen = (key: string) =>
     collapsed.has(key) ? !defaultOpen : defaultOpen;
+  const isSectionOpen = (key: string) => !collapsed.has(key);
   const toggle = (key: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -129,6 +279,104 @@ function MatrixView({
       else next.add(key);
       return next;
     });
+
+  const renderGroupRows = (g: MatrixGroup, collapseKey: string) => {
+    const opened = isOpen(collapseKey);
+    return (
+      <Fragment key={collapseKey}>
+        <tr
+          className="cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900"
+          onClick={() => toggle(collapseKey)}
+        >
+          <td className="sticky left-0 z-10 w-56 min-w-56 border-r border-gray-200 bg-gray-50/60 px-2 py-1 dark:border-gray-800 dark:bg-gray-900/40">
+            <span className="flex items-center gap-1.5 overflow-hidden">
+              <span className="flex w-3 shrink-0 text-gray-400">
+                {opened ? (
+                  <ChevronDown size={13} className="inline-block" />
+                ) : (
+                  <ChevronRight size={13} className="inline-block" />
+                )}
+              </span>
+              <span className="truncate font-mono font-medium text-gray-700 dark:text-gray-300">
+                <MonoName name={g.key} />
+                <span className="text-gray-400">.*</span>
+              </span>
+              <span className="shrink-0 text-[10px] text-gray-400">
+                {g.permIds.length}
+              </span>
+            </span>
+          </td>
+          {roleIndexes.map((roleIdx, i) => {
+            const c = seriesColor(i);
+            const held = g.permIds.filter(
+              (id) => (masks.get(id) ?? 0) & (1 << i),
+            ).length;
+            const cls =
+              held === g.permIds.length
+                ? c.text
+                : held === 0
+                  ? "text-gray-300 dark:text-gray-700"
+                  : "text-gray-500 dark:text-gray-400";
+            return (
+              <td
+                key={roleIdx}
+                className="border-l border-gray-100 px-1 py-1 text-center tabular-nums dark:border-gray-800"
+              >
+                <span className={`text-[10px] ${cls}`}>
+                  {held}/{g.permIds.length}
+                </span>
+              </td>
+            );
+          })}
+        </tr>
+        {opened &&
+          g.permIds.map((id) => {
+            const name = ds.permissions[id];
+            const mask = masks.get(id) ?? 0;
+            return (
+              <tr
+                key={id}
+                className="border-b border-gray-50 hover:bg-amber-50 dark:border-gray-900 dark:hover:bg-amber-950/30"
+              >
+                <td className="sticky left-0 z-10 w-56 min-w-56 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                  <button
+                    type="button"
+                    onClick={() => state.anchorPerm(name)}
+                    title={ds.permMeta[id]?.description ?? name}
+                    className="block w-full cursor-pointer truncate py-0.5 pr-2 pl-7 text-left font-mono hover:underline"
+                  >
+                    <span className="text-gray-300 dark:text-gray-700">
+                      {permParts(name).group}.
+                    </span>
+                    <span className="text-gray-700 dark:text-gray-300">
+                      {permParts(name).verb}
+                    </span>
+                  </button>
+                </td>
+                {roleIndexes.map((roleIdx, i) => {
+                  const c = seriesColor(i);
+                  const has = (mask & (1 << i)) !== 0;
+                  return (
+                    <td
+                      key={roleIdx}
+                      className="border-l border-gray-100 text-center dark:border-gray-800"
+                    >
+                      {has ? (
+                        <Check size={14} className={`inline-block ${c.text}`} />
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-700">
+                          −
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+      </Fragment>
+    );
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -142,6 +390,39 @@ function MatrixView({
           />
           共通も表示 ({commonCount})
         </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
+          <input
+            type="checkbox"
+            checked={showUnheld}
+            onChange={(e) => setShowUnheld(e.target.checked)}
+            className="accent-purple-600"
+          />
+          未保持の権限も表示
+        </label>
+        <div className="flex items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setSortMode("diff")}
+            className={`rounded px-1.5 py-0.5 text-xs cursor-pointer ${
+              sortMode === "diff"
+                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            }`}
+          >
+            差分順
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortMode("name")}
+            className={`rounded px-1.5 py-0.5 text-xs cursor-pointer ${
+              sortMode === "name"
+                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            }`}
+          >
+            権限名順
+          </button>
+        </div>
         <span className="ml-auto text-[10px] text-gray-400">
           {groupCount} グループ / {totalRows} 権限
         </span>
@@ -161,7 +442,7 @@ function MatrixView({
                 return (
                   <th
                     key={roleIdx}
-                    className="w-20 border-b border-gray-200 px-1 py-1.5 text-center align-bottom dark:border-gray-800"
+                    className="w-20 border-b border-l border-gray-100 border-b-gray-200 px-1 py-1.5 text-center align-bottom dark:border-gray-800 dark:border-b-gray-800"
                     title={shortRoleName(role.name)}
                   >
                     <MonoName
@@ -177,199 +458,79 @@ function MatrixView({
             </tr>
           </thead>
           <tbody>
-            {groups.map((g) => {
-              const opened = isOpen(g.key);
-              return (
-                <Fragment key={g.key}>
-                  <tr
-                    className="cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900"
-                    onClick={() => toggle(g.key)}
-                  >
-                    <td className="sticky left-0 z-10 w-56 min-w-56 border-r border-gray-200 bg-gray-50/60 px-2 py-1 dark:border-gray-800 dark:bg-gray-900/40">
-                      <span className="flex items-center gap-1.5 overflow-hidden">
-                        <span className="flex w-3 shrink-0 text-gray-400">
-                          {opened ? (
-                            <ChevronDown size={13} className="inline-block" />
-                          ) : (
-                            <ChevronRight size={13} className="inline-block" />
-                          )}
-                        </span>
-                        <MonoName
-                          name={g.key}
-                          className="truncate font-medium text-gray-700 dark:text-gray-300"
-                        />
-                        <span className="shrink-0 text-[10px] text-gray-400">
-                          {g.permIds.length}
-                        </span>
-                      </span>
-                    </td>
-                    {roleIndexes.map((roleIdx, i) => {
-                      const c = seriesColor(i);
-                      const held = g.permIds.filter(
-                        (id) => (masks.get(id) ?? 0) & (1 << i),
-                      ).length;
-                      const cls =
-                        held === g.permIds.length
-                          ? c.text
-                          : held === 0
-                            ? "text-gray-300 dark:text-gray-700"
-                            : "text-gray-500 dark:text-gray-400";
-                      return (
-                        <td
-                          key={roleIdx}
-                          className="px-1 py-1 text-center tabular-nums"
-                        >
-                          <span className={`text-[10px] ${cls}`}>
-                            {held}/{g.permIds.length}
-                          </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                  {opened &&
-                    g.permIds.map((id) => {
-                      const name = ds.permissions[id];
-                      const mask = masks.get(id) ?? 0;
-                      return (
+            {sortMode === "name"
+              ? groups.map((g) => renderGroupRows(g, g.key))
+              : diffSections
+                  .filter((s) => s.alwaysShow || s.permIds.length > 0)
+                  .map((s) => {
+                    const sectionOpen = isSectionOpen(s.key);
+                    const badges = badgesForPermissions(
+                      s.permIds.map((id) => ds.permissions[id]),
+                    );
+                    const sectionGroups = groupMatrixRows(ds, s.permIds);
+                    const isEmpty = s.permIds.length === 0;
+                    return (
+                      <Fragment key={s.key}>
                         <tr
-                          key={id}
-                          className="border-b border-gray-50 hover:bg-amber-50 dark:border-gray-900 dark:hover:bg-amber-950/30"
+                          className="cursor-pointer border-y border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900"
+                          onClick={() => toggle(s.key)}
                         >
-                          <td className="sticky left-0 z-10 w-56 min-w-56 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                            <button
-                              type="button"
-                              onClick={() => state.select({ type: "p", name })}
-                              title={ds.permMeta[id]?.description ?? name}
-                              className="block w-full cursor-pointer truncate py-0.5 pr-2 pl-7 text-left font-mono text-gray-700 hover:underline dark:text-gray-300"
-                            >
-                              {permParts(name).verb}
-                            </button>
-                          </td>
-                          {roleIndexes.map((roleIdx, i) => {
-                            const c = seriesColor(i);
-                            const has = (mask & (1 << i)) !== 0;
-                            return (
-                              <td key={roleIdx} className="text-center">
-                                {has ? (
-                                  <Check
+                          <td
+                            colSpan={roleIndexes.length + 1}
+                            className="sticky left-0 z-10 bg-white px-3 py-1.5 dark:bg-gray-950"
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="flex w-3.5 shrink-0 text-gray-400">
+                                {sectionOpen ? (
+                                  <ChevronDown
                                     size={14}
-                                    className={`inline-block ${c.text}`}
+                                    className="inline-block"
                                   />
                                 ) : (
-                                  <span className="text-gray-300 dark:text-gray-700">
-                                    −
-                                  </span>
+                                  <ChevronRight
+                                    size={14}
+                                    className="inline-block"
+                                  />
                                 )}
-                              </td>
-                            );
-                          })}
+                              </span>
+                              <span className="text-sm font-semibold">
+                                {s.parts.map((p, idx) => (
+                                  // biome-ignore lint/suspicious/noArrayIndexKey: parts order is stable within a section
+                                  <span key={idx} className={p.className}>
+                                    {p.text}
+                                  </span>
+                                ))}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {s.permIds.length}
+                              </span>
+                              <span className="ml-auto flex gap-1">
+                                {badges.map((b) => (
+                                  <BadgeTag key={b.id} badge={b} />
+                                ))}
+                              </span>
+                            </span>
+                          </td>
                         </tr>
-                      );
-                    })}
-                </Fragment>
-              );
-            })}
+                        {sectionOpen && isEmpty && (
+                          <tr className="border-b border-gray-50 dark:border-gray-900">
+                            <td
+                              colSpan={roleIndexes.length + 1}
+                              className="py-0.5 pl-9 text-xs text-gray-400"
+                            >
+                              ありません
+                            </td>
+                          </tr>
+                        )}
+                        {sectionOpen &&
+                          sectionGroups.map((g) =>
+                            renderGroupRows(g, `${s.mask}/${g.key}`),
+                          )}
+                      </Fragment>
+                    );
+                  })}
           </tbody>
         </table>
-      </div>
-    </div>
-  );
-}
-
-function DiffView({
-  ds,
-  state,
-  sections,
-  sectionRefs,
-  forcedOpen,
-  jumpTo,
-}: {
-  ds: Dataset;
-  state: ExplorerState;
-  sections: Section[];
-  sectionRefs: React.MutableRefObject<Map<string, HTMLElement>>;
-  forcedOpen: Set<string>;
-  jumpTo: (key: string) => void;
-}) {
-  const [a, common, b] = sections;
-  const columns = [a, b];
-
-  return (
-    <div className="flex h-full flex-col">
-      <p className="border-b border-gray-100 px-3 py-1 text-[10px] text-gray-400 dark:border-gray-900">
-        左のロールから右のロールへ乗り換えると、左カラムを失い右カラムを得ます
-      </p>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
-          {columns.map((s, i) => {
-            const badges = badgesForPermissions(
-              s.permIds.map((id) => ds.permissions[id]),
-            );
-            const c = seriesColor(i);
-            return (
-              <div key={s.key}>
-                <header
-                  className={`sticky top-0 z-10 flex items-center gap-2 px-3 py-2 ${c.bgSoft}`}
-                >
-                  <h3 className={`text-sm font-semibold ${s.textClass}`}>
-                    {s.label} ({s.permIds.length})
-                  </h3>
-                  <span className="ml-auto flex gap-1">
-                    {badges.map((b) => (
-                      <BadgeTag key={b.id} badge={b} />
-                    ))}
-                  </span>
-                </header>
-                <div className="px-1">
-                  {s.permIds.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-gray-400">なし</p>
-                  ) : (
-                    <PermGroupList
-                      ds={ds}
-                      permIds={s.permIds}
-                      defaultOpen={s.permIds.length <= 60}
-                      onSelectPerm={(name) => state.select({ type: "p", name })}
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <section
-          ref={(el) => {
-            if (el) sectionRefs.current.set(common.key, el);
-          }}
-          className="m-3 rounded border-l-4 border-gray-300 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900/40"
-        >
-          <button
-            type="button"
-            onClick={() => jumpTo(common.key)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left cursor-pointer"
-          >
-            <span className="flex w-3 text-gray-400">
-              {forcedOpen.has(common.key) ? (
-                <ChevronDown size={14} className="inline-block" />
-              ) : (
-                <ChevronRight size={14} className="inline-block" />
-              )}
-            </span>
-            <h3 className={`text-sm font-semibold ${common.textClass}`}>
-              {common.label} ({common.permIds.length})
-            </h3>
-          </button>
-          {forcedOpen.has(common.key) &&
-            (common.permIds.length === 0 ? (
-              <p className="px-3 pb-2 text-xs text-gray-400">なし</p>
-            ) : (
-              <PermGroupList
-                ds={ds}
-                permIds={common.permIds}
-                defaultOpen={common.permIds.length <= 60}
-                onSelectPerm={(name) => state.select({ type: "p", name })}
-              />
-            ))}
-        </section>
       </div>
     </div>
   );
@@ -384,27 +545,21 @@ export function ComparePane({
   state: ExplorerState;
   roleIndexes: number[];
 }) {
-  const isTwo = roleIndexes.length === 2;
-  const [view, setView] = useState<"diff" | "matrix">("diff");
-  const effectiveView = isTwo ? view : "matrix";
+  const parsed = useMemo(() => parseQuery(state.q), [state.q]);
+  const filterActive = hasPermFilter(parsed);
+  const filterTerms = [
+    ...parsed.s.map((t) => `s:${t}`),
+    ...parsed.p.map((t) => `p:${t}`),
+  ];
 
-  const sections = useMemo(
-    () => (isTwo ? computeDiffSections(ds, roleIndexes) : []),
-    [ds, roleIndexes, isTwo],
+  // union sizes across the selected roles, before/after the s:/p: filter —
+  // drives the PermFilterNotice count
+  const masks = useMemo(() => computeMasks(ds, roleIndexes), [ds, roleIndexes]);
+  const unionTotal = masks.size;
+  const unionShown = useMemo(
+    () => filterPermIds(ds, [...masks.keys()], parsed).length,
+    [ds, masks, parsed],
   );
-  const total = sections.reduce((sum, s) => sum + s.permIds.length, 0);
-  const sectionRefs = useRef(new Map<string, HTMLElement>());
-  const [forcedOpen, setForcedOpen] = useState<Set<string>>(new Set());
-
-  const jumpTo = (key: string) => {
-    setForcedOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-    sectionRefs.current.get(key)?.scrollIntoView({ behavior: "smooth" });
-  };
 
   return (
     <div className="flex h-full flex-col">
@@ -428,74 +583,23 @@ export function ComparePane({
               );
             })}
           </div>
-          {isTwo && (
-            <div className="ml-auto flex items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => setView("diff")}
-                title="diff ビュー"
-                className={`flex items-center gap-1 rounded px-1.5 py-1 text-xs cursor-pointer ${
-                  view === "diff"
-                    ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                    : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                }`}
-              >
-                <Columns2 size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("matrix")}
-                title="マトリクスビュー"
-                className={`flex items-center gap-1 rounded px-1.5 py-1 text-xs cursor-pointer ${
-                  view === "matrix"
-                    ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                    : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                }`}
-              >
-                <TableIcon size={14} />
-              </button>
-            </div>
-          )}
         </div>
-        {effectiveView === "diff" && (
-          <>
-            <div className="mt-2 flex h-4 w-full overflow-hidden rounded">
-              {sections
-                .filter((s) => s.permIds.length > 0)
-                .map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => jumpTo(s.key)}
-                    title={`${s.label}: ${s.permIds.length}`}
-                    className={`${s.barClass} cursor-pointer transition-opacity hover:opacity-80`}
-                    style={{ width: `${(s.permIds.length / total) * 100}%` }}
-                  />
-                ))}
-            </div>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
-              {sections.map((s) => (
-                <span key={s.key} className={s.textClass}>
-                  {s.label}: {s.permIds.length}
-                </span>
-              ))}
-            </div>
-          </>
-        )}
       </div>
+      {filterActive && (
+        <PermFilterNotice
+          terms={filterTerms}
+          shown={unionShown}
+          total={unionTotal}
+          onClear={() => state.setQ(stripPermQualifiers(state.q))}
+        />
+      )}
       <div className="min-h-0 flex-1">
-        {effectiveView === "diff" ? (
-          <DiffView
-            ds={ds}
-            state={state}
-            sections={sections}
-            sectionRefs={sectionRefs}
-            forcedOpen={forcedOpen}
-            jumpTo={jumpTo}
-          />
-        ) : (
-          <MatrixView ds={ds} state={state} roleIndexes={roleIndexes} />
-        )}
+        <MatrixView
+          ds={ds}
+          state={state}
+          roleIndexes={roleIndexes}
+          parsed={parsed}
+        />
       </div>
     </div>
   );

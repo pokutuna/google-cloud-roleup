@@ -1,36 +1,16 @@
-import { useMemo, useState } from "react";
-import { type Dataset, permParts, shortRoleName } from "../lib/data";
-import { matchingPermBits, parseQuery } from "../lib/search";
+import { useMemo } from "react";
+import { type Dataset, shortRoleName } from "../lib/data";
+import {
+  filterPermIds,
+  hasPermFilter,
+  matchingPermBits,
+  parseQuery,
+  permNameMatches,
+  stripPermQualifiers,
+} from "../lib/search";
 import type { ExplorerState } from "../lib/url-state";
 import { PermGroupList } from "./PermGroupList";
-import { MonoName } from "./primitives";
-
-function permMatchesFilter(
-  permName: string,
-  terms: { s: string[]; texts: string[] },
-): boolean {
-  const lower = permName.toLowerCase();
-  const service = permParts(permName).service.toLowerCase();
-  return (
-    terms.s.every((t) => service.includes(t)) &&
-    terms.texts.every((t) => lower.includes(t))
-  );
-}
-
-/** In-pane filter (§4.4): same syntax as the omnibox, different target. */
-function usePermFilter(ds: Dataset, permIds: number[]) {
-  const [filter, setFilter] = useState("");
-  const { filtered, terms } = useMemo(() => {
-    const parsed = parseQuery(filter);
-    const terms = { s: parsed.s, texts: [...parsed.p, ...parsed.free] };
-    const filtered =
-      terms.s.length === 0 && terms.texts.length === 0
-        ? permIds
-        : permIds.filter((id) => permMatchesFilter(ds.permissions[id], terms));
-    return { filtered, terms };
-  }, [ds, permIds, filter]);
-  return { filter, setFilter, filtered, terms };
-}
+import { MonoName, PermFilterNotice } from "./primitives";
 
 function MissTeaser({
   ds,
@@ -45,7 +25,7 @@ function MissTeaser({
     const bits = matchingPermBits(ds, term);
     let matchCount = 0;
     for (let i = 0; i < ds.permissions.length; i++) {
-      if (ds.permissions[i].toLowerCase().includes(term)) matchCount++;
+      if (permNameMatches(ds.permissions[i], term)) matchCount++;
     }
     let roleCount = 0;
     for (let i = 0; i < ds.roles.length; i++) {
@@ -58,7 +38,7 @@ function MissTeaser({
     }
     const exact =
       matchCount === 1
-        ? ds.permissions.find((p) => p.toLowerCase().includes(term))
+        ? ds.permissions.find((p) => permNameMatches(p, term))
         : undefined;
     return { matchCount, roleCount, exact };
   }, [ds, term]);
@@ -78,9 +58,7 @@ function MissTeaser({
       <button
         type="button"
         onClick={() =>
-          exact
-            ? state.select({ type: "p", name: exact })
-            : state.setQ(`p:${term} `)
+          exact ? state.anchorPerm(exact) : state.setQ(`p:${term} `)
         }
         className="mt-1 text-amber-800 underline dark:text-amber-300 cursor-pointer"
       >
@@ -135,20 +113,24 @@ function RelatedRoleRow({
       >
         <MonoName name={short} />
       </button>
-      {plainCount !== undefined ? (
-        <span className="shrink-0 font-mono text-xs text-gray-400">
-          {plainCount}
+      <span className="relative flex h-5 shrink-0 items-center">
+        <span className="transition-opacity group-hover:opacity-0">
+          {plainCount !== undefined ? (
+            <span className="font-mono text-xs text-gray-400">
+              {plainCount}
+            </span>
+          ) : (
+            <DiffBadge plus={plus} minus={minus} />
+          )}
         </span>
-      ) : (
-        <DiffBadge plus={plus} minus={minus} />
-      )}
-      <button
-        type="button"
-        onClick={() => state.toggle({ type: "r", name: short })}
-        className="shrink-0 rounded border border-gray-300 px-1.5 text-xs text-gray-500 opacity-0 transition-opacity hover:border-purple-400 hover:text-purple-600 group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:hover:text-purple-300 cursor-pointer"
-      >
-        +比較
-      </button>
+        <button
+          type="button"
+          onClick={() => state.toggle({ type: "r", name: short })}
+          className="absolute inset-y-0 right-0 flex items-center rounded border border-gray-300 bg-white px-1.5 text-xs text-gray-500 opacity-0 transition-opacity hover:border-purple-400 hover:text-purple-600 group-hover:opacity-100 focus-visible:opacity-100 dark:border-gray-700 dark:bg-gray-950 dark:hover:text-purple-300 cursor-pointer"
+        >
+          +比較
+        </button>
+      </span>
     </li>
   );
 }
@@ -262,11 +244,17 @@ export function DetailPane({
   roleIndex: number;
 }) {
   const role = ds.roles[roleIndex];
-  const { filter, setFilter, filtered, terms } = usePermFilter(
-    ds,
-    role.permIds,
+  const parsed = useMemo(() => parseQuery(state.q), [state.q]);
+  const filterActive = hasPermFilter(parsed);
+  const filtered = useMemo(
+    () => filterPermIds(ds, role.permIds, parsed),
+    [ds, role.permIds, parsed],
   );
-  const missTerm = terms.texts[0] ?? terms.s[0];
+  const missTerm = parsed.p[0] ?? parsed.s[0];
+  const filterTerms = [
+    ...parsed.s.map((t) => `s:${t}`),
+    ...parsed.p.map((t) => `p:${t}`),
+  ];
 
   return (
     <div className="flex h-full flex-col">
@@ -291,17 +279,17 @@ export function DetailPane({
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
         <div className="flex min-h-0 flex-col">
-          <div className="border-b border-gray-100 p-2 dark:border-gray-800">
-            <input
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="このロール内を絞り込む (s:bigquery, getData ...)"
-              className="w-full rounded border border-gray-200 px-2 py-1 text-sm outline-none focus:border-amber-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          <p className="border-b border-gray-100 p-2 text-[10px] text-gray-400 dark:border-gray-800">
+            パーミッションをクリックすると、それを含むロールを逆引きします
+          </p>
+          {filterActive && (
+            <PermFilterNotice
+              terms={filterTerms}
+              shown={filtered.length}
+              total={role.permIds.length}
+              onClear={() => state.setQ(stripPermQualifiers(state.q))}
             />
-            <p className="mt-1 text-[10px] text-gray-400">
-              パーミッションをクリックすると、それを含むロールを逆引きします
-            </p>
-          </div>
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {filtered.length === 0 && missTerm ? (
               <MissTeaser ds={ds} state={state} term={missTerm} />
@@ -309,8 +297,8 @@ export function DetailPane({
               <PermGroupList
                 ds={ds}
                 permIds={filtered}
-                defaultOpen={filter !== "" || filtered.length <= 60}
-                onSelectPerm={(name) => state.select({ type: "p", name })}
+                defaultOpen={filterActive || filtered.length <= 60}
+                onSelectPerm={(name) => state.anchorPerm(name)}
               />
             )}
           </div>

@@ -1,4 +1,7 @@
+import { Settings } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { Dataset } from "../lib/data";
+import { usePinnedServices } from "../lib/pinned";
 import type { ExplorerState } from "../lib/url-state";
 import { Omnibox } from "./Omnibox";
 import { EntityChip } from "./primitives";
@@ -51,6 +54,54 @@ function SelectionTray({ state }: { state: ExplorerState }) {
   );
 }
 
+function SettingsMenu() {
+  const { reset, isDefault } = usePinnedServices();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="設定"
+        aria-label="設定"
+        className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 cursor-pointer dark:hover:bg-gray-800 dark:hover:text-gray-300"
+      >
+        <Settings size={16} />
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 z-30 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+          <button
+            type="button"
+            disabled={isDefault}
+            onClick={() => {
+              reset();
+              setOpen(false);
+            }}
+            className={`block w-full px-3 py-1.5 text-left ${
+              isDefault
+                ? "cursor-default text-gray-400 dark:text-gray-600"
+                : "cursor-pointer text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+            }`}
+          >
+            サービスのピン留めをリセット
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function HeaderBar({
   ds,
   state,
@@ -69,6 +120,7 @@ export function HeaderBar({
           data: {ds.generatedAt} · {ds.roles.length} roles ·{" "}
           {ds.permissions.length} permissions
         </span>
+        <SettingsMenu />
       </div>
       <Omnibox ds={ds} state={state} />
       <SelectionTray state={state} />

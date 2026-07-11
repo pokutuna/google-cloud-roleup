@@ -73,6 +73,14 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
       : idxs.filter((i) => !isServiceAgent(ds.roles[i]));
   }, [ds, state.q, state.showServiceAgents]);
 
+  // total roles with no query filter, under current display settings —
+  // the denominator for RoleList's "n / N ロール" indicator
+  const totalRoleCount = useMemo(() => {
+    return state.showServiceAgents
+      ? ds.roles.length
+      : ds.roles.filter((r) => !isServiceAgent(r)).length;
+  }, [ds, state.showServiceAgents]);
+
   // resolve selection to indexes; permission anchor wins for the right pane
   const selRoleIdxs = state.selection
     .filter((it) => it.type === "r")
@@ -110,6 +118,7 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
                 ds={ds}
                 state={state}
                 roleIndexes={filtered}
+                totalCount={totalRoleCount}
                 onCollapse={() => setExpanded(true)}
               />
             </aside>

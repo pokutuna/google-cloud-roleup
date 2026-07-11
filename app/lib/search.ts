@@ -2,6 +2,7 @@ import { hasBit, intersects, toBitset } from "./bitset";
 import {
   type Dataset,
   isServiceAgent,
+  permParts,
   type Role,
   roleServicePrefix,
   serviceDisplayName,
@@ -38,11 +39,16 @@ export function isEmptyQuery(parsed: ParsedQuery): boolean {
   );
 }
 
+/** Case-insensitive substring match on the full permission name. */
+export function permNameMatches(name: string, term: string): boolean {
+  return name.toLowerCase().includes(term);
+}
+
 /** permission ids whose name contains the term */
 export function matchingPermBits(ds: Dataset, term: string): Uint32Array {
   const ids: number[] = [];
   for (let i = 0; i < ds.permissions.length; i++) {
-    if (ds.permissions[i].toLowerCase().includes(term)) ids.push(i);
+    if (permNameMatches(ds.permissions[i], term)) ids.push(i);
   }
   return toBitset(ids, ds.bitsetWords);
 }
@@ -107,6 +113,13 @@ function score(text: string, term: string): number {
   return 0;
 }
 
+/** permission name match with a startsWith boost, substring otherwise */
+function permScore(name: string, term: string): number {
+  if (name.toLowerCase().startsWith(term)) return 2;
+  if (permNameMatches(name, term)) return 1;
+  return 0;
+}
+
 export interface Suggestions {
   services: string[];
   roleIndexes: number[];
@@ -158,7 +171,7 @@ export function suggest(
   const permIds: [number, number][] = [];
   if ((!kind && term.length >= 2) || kind === "p") {
     for (let i = 0; i < ds.permissions.length; i++) {
-      const sc = score(ds.permissions[i], term);
+      const sc = permScore(ds.permissions[i], term);
       if (sc > 0) permIds.push([i, sc]);
     }
   }
@@ -173,6 +186,46 @@ export function suggest(
     roleIndexes: top(roleIndexes),
     permIds: top(permIds),
   };
+}
+
+/** Does the parsed query have any pane-scoped permission filter (s: or p:)? */
+export function hasPermFilter(parsed: ParsedQuery): boolean {
+  return parsed.s.length > 0 || parsed.p.length > 0;
+}
+
+/**
+ * Filter a list of permission ids by the s:/p: terms of a parsed query
+ * (r: and free terms are ignored — they have no meaning for a permission
+ * list). s: matches the permission's service (permParts().service),
+ * p: matches the full permission name. All terms are ANDed.
+ */
+export function filterPermIds(
+  ds: Dataset,
+  permIds: number[],
+  parsed: ParsedQuery,
+): number[] {
+  if (!hasPermFilter(parsed)) return permIds;
+  return permIds.filter((id) => {
+    const name = ds.permissions[id];
+    const service = permParts(name).service.toLowerCase();
+    return (
+      parsed.s.every((term) => service.includes(term)) &&
+      parsed.p.every((term) => permNameMatches(name, term))
+    );
+  });
+}
+
+/** Remove only s:/p: tokens from a query string, keeping r:/free tokens. */
+export function stripPermQualifiers(q: string): string {
+  return q
+    .trim()
+    .split(/\s+/)
+    .filter((token) => {
+      if (!token) return false;
+      const m = token.match(/^([srp]):(.*)$/);
+      return !(m && (m[1] === "s" || m[1] === "p"));
+    })
+    .join(" ");
 }
 
 /** Roles containing the permission, ordered by total permission count asc. */

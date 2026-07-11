@@ -62,16 +62,39 @@ export function badgesForPermission(permName: string): Badge[] {
   return badges;
 }
 
-/** Distinct badges across a set of permissions, danger first. */
-export function badgesForPermissions(permNames: Iterable<string>): Badge[] {
-  const seen = new Map<string, Badge>();
+/** Max number of matched permission names to list in a badge's tooltip. */
+const MAX_MATCHED = 8;
+
+export type BadgeWithMatches = Badge & { matched?: string[] };
+
+/**
+ * Distinct badges across a set of permissions, danger first. Each badge
+ * carries the actual permission names that triggered it (capped, with an
+ * overflow count) so tooltips can show concrete evidence.
+ */
+export function badgesForPermissions(
+  permNames: Iterable<string>,
+): BadgeWithMatches[] {
+  const matches = new Map<string, string[]>();
   for (const name of permNames) {
     for (const b of badgesForPermission(name)) {
-      seen.set(b.id, b);
+      const list = matches.get(b.id);
+      if (list) list.push(name);
+      else matches.set(b.id, [name]);
     }
   }
   const order: BadgeTone[] = ["danger", "warn", "info"];
-  return [...seen.values()].sort(
-    (a, b) => order.indexOf(a.tone) - order.indexOf(b.tone),
-  );
+  return [...matches.entries()]
+    .map(([id, names]) => {
+      const badge = BADGES[id];
+      const matched =
+        names.length > MAX_MATCHED
+          ? [
+              ...names.slice(0, MAX_MATCHED),
+              `ほか ${names.length - MAX_MATCHED} 件`,
+            ]
+          : names;
+      return { ...badge, matched };
+    })
+    .sort((a, b) => order.indexOf(a.tone) - order.indexOf(b.tone));
 }

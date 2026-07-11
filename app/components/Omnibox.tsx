@@ -20,14 +20,31 @@ const ITEM =
 export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // The input owns its text locally so keystrokes render synchronously;
+  // state.setQ routes through a router navigation (startTransition), which
+  // would otherwise lag the controlled value. External q changes (example
+  // clicks, filter-notice clear, back button) sync back into the input.
+  const [text, setText] = useState(state.q);
+  const lastQ = useRef(state.q);
+  if (lastQ.current !== state.q) {
+    lastQ.current = state.q;
+    if (text !== state.q) setText(state.q);
+  }
+  const onValueChange = (value: string) => {
+    setText(value);
+    lastQ.current = value;
+    state.setQ(value);
+  };
+
   const sugg = useMemo(
     () =>
-      state.q.trim()
-        ? suggest(ds, state.q, 6, {
+      text.trim()
+        ? suggest(ds, text, 6, {
             includeServiceAgents: state.showServiceAgents,
           })
         : null,
-    [ds, state.q, state.showServiceAgents],
+    [ds, text, state.showServiceAgents],
   );
   const open =
     focused &&
@@ -42,8 +59,8 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
     >
       <Command.Input
         ref={inputRef}
-        value={state.q}
-        onValueChange={state.setQ}
+        value={text}
+        onValueChange={onValueChange}
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
         placeholder="検索: s:bigquery p:tables.getData owner ... (s:=サービス r:=ロール p:=パーミッション)"
@@ -62,7 +79,7 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
                 key={`s:${prefix}`}
                 value={`s:${prefix}`}
                 onSelect={() => {
-                  state.setQ(`${replaceLastToken(state.q, `s:${prefix}`)} `);
+                  onValueChange(`${replaceLastToken(text, `s:${prefix}`)} `);
                   inputRef.current?.focus();
                 }}
                 className={ITEM}
@@ -110,9 +127,7 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
               <Command.Item
                 key={`p:${ds.permissions[id]}`}
                 value={`p:${ds.permissions[id]}`}
-                onSelect={() =>
-                  state.select({ type: "p", name: ds.permissions[id] })
-                }
+                onSelect={() => state.anchorPerm(ds.permissions[id])}
                 className={ITEM}
               >
                 <span className={`font-mono text-xs ${ENTITY.p.text}`}>p:</span>

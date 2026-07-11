@@ -1,31 +1,181 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState } from "react";
-import { badgesForPermissions } from "../lib/badges";
+import { useRef, useState } from "react";
+import { badgesForPermission, badgesForPermissions } from "../lib/badges";
 import { type Dataset, permParts } from "../lib/data";
-import { BadgeTag, MonoName } from "./primitives";
+import { BadgeTag } from "./primitives";
 
-interface Group {
-  key: string;
-  permIds: number[];
+/** Threshold above which the list defaults to collapsed-by-resource. */
+const AUTO_COLLAPSE_THRESHOLD = 200;
+/** Below this size the "collapse all / expand all" row isn't worth showing. */
+const BULK_TOGGLE_MIN = 10;
+
+interface FlatRow {
+  type: "flat";
+  id: number;
+  name: string;
 }
 
-function groupPerms(ds: Dataset, permIds: number[]): Group[] {
-  const map = new Map<string, number[]>();
-  for (const id of permIds) {
-    const key = permParts(ds.permissions[id]).group;
-    const list = map.get(key);
-    if (list) list.push(id);
-    else map.set(key, [id]);
+interface GroupRow {
+  type: "group";
+  /** collapse key: "service" or "service.resource" */
+  key: string;
+  permIds: number[];
+  /** whether this group is currently collapsed */
+  collapsed: boolean;
+}
+
+type Row = FlatRow | GroupRow;
+
+/**
+ * Walk permIds (assumed name-sorted, i.e. id order) and produce the rows to
+ * render: every contiguous run sharing a resource group (service.resource,
+ * or service when there's no resource) is preceded by a group placeholder
+ * row. When the group is collapsed, only the placeholder row is emitted;
+ * otherwise the placeholder is followed by the run's flat rows.
+ */
+export function buildRows(
+  ds: Dataset,
+  permIds: number[],
+  collapsed: Set<string>,
+): Row[] {
+  const rows: Row[] = [];
+  let i = 0;
+  while (i < permIds.length) {
+    const parts = permParts(ds.permissions[permIds[i]]);
+    const key = parts.group || parts.service;
+    const run: number[] = [];
+    while (i < permIds.length) {
+      const p = permParts(ds.permissions[permIds[i]]);
+      const rk = p.group || p.service;
+      if (rk !== key) break;
+      run.push(permIds[i]);
+      i++;
+    }
+    const isCollapsed = collapsed.has(key);
+    rows.push({ type: "group", key, permIds: run, collapsed: isCollapsed });
+    if (!isCollapsed) {
+      for (const id of run) {
+        rows.push({ type: "flat", id, name: ds.permissions[id] });
+      }
+    }
   }
-  return [...map.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, ids]) => ({ key, permIds: ids }));
+  return rows;
+}
+
+/** Every distinct "service.resource" key across permIds (used by "collapse all"). */
+export function allResourceKeys(ds: Dataset, permIds: number[]): string[] {
+  const keys = new Set<string>();
+  for (const id of permIds) {
+    const parts = permParts(ds.permissions[id]);
+    keys.add(parts.group || parts.service);
+  }
+  return [...keys];
+}
+
+function GroupRowView({
+  ds,
+  row,
+  onToggle,
+}: {
+  ds: Dataset;
+  row: GroupRow;
+  onToggle: () => void;
+}) {
+  const names = row.permIds.map((id) => ds.permissions[id]);
+  const badges = row.collapsed ? badgesForPermissions(names) : [];
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={
+        row.collapsed
+          ? "クリックで展開"
+          : `${row.key}.* にまとめる (クリックで畳む)`
+      }
+      className="flex w-full items-center gap-1.5 border-t border-gray-100 px-2 py-0.5 text-left text-[11px] hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900 cursor-pointer"
+    >
+      <span className="flex w-3.5 shrink-0 justify-center text-gray-300 dark:text-gray-600">
+        {row.collapsed ? (
+          <ChevronRight size={12} className="inline-block" />
+        ) : (
+          <ChevronDown size={12} className="inline-block" />
+        )}
+      </span>
+      <span className="font-mono text-gray-400 dark:text-gray-500">
+        {row.key}
+        <span>.*</span>
+      </span>
+      <span className="text-gray-400">{row.permIds.length}</span>
+      {row.collapsed && badges.length > 0 && (
+        <span className="ml-auto flex gap-1">
+          {badges.map((b) => (
+            <BadgeTag key={b.id} badge={b} />
+          ))}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function FlatRowView({
+  ds,
+  row,
+  onSelectPerm,
+}: {
+  ds: Dataset;
+  row: FlatRow;
+  onSelectPerm: (permName: string) => void;
+}) {
+  const meta = ds.permMeta[row.id];
+  const parts = permParts(row.name);
+  const hasResource = parts.resource.length > 0;
+  const badges = badgesForPermission(row.name);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelectPerm(row.name)}
+      title={meta?.description ?? row.name}
+      className="flex w-full items-baseline gap-1 border-b border-gray-50 py-0.5 pr-2 pl-2 text-left text-sm hover:bg-amber-50 dark:border-gray-900 dark:hover:bg-amber-950/40 cursor-pointer"
+    >
+      <span className="w-3.5 shrink-0" />
+      <span className="font-mono text-gray-400 dark:text-gray-500">
+        {parts.service}.
+      </span>
+      {hasResource && (
+        <span className="font-mono text-gray-400 dark:text-gray-500">
+          {parts.resource}.
+        </span>
+      )}
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="font-mono text-gray-700 dark:text-gray-300">
+          {parts.verb}
+        </span>
+        {meta?.title && (
+          <span className="truncate text-xs text-gray-400">{meta.title}</span>
+        )}
+        {meta?.stage && (
+          <span className="text-[10px] uppercase text-gray-400">
+            {meta.stage}
+          </span>
+        )}
+        {badges.length > 0 && (
+          <span className="flex shrink-0 gap-1">
+            {badges.map((b) => (
+              <BadgeTag key={b.id} badge={b} />
+            ))}
+          </span>
+        )}
+      </span>
+    </button>
+  );
 }
 
 /**
- * Permissions grouped by "service.resource" with istanbul-style rollup
- * counts and collapsible groups. Shared by the detail pane, comparison
- * sections and the reverse-lookup pane.
+ * Flat, resource-grouped permission list. Permissions render one per line
+ * in name order, grouped by "service.resource"; each group is preceded by a
+ * clickable placeholder row that folds or unfolds its run. Shared by the
+ * detail pane, comparison sections and the reverse-lookup pane.
  */
 export function PermGroupList({
   ds,
@@ -38,88 +188,73 @@ export function PermGroupList({
   defaultOpen?: boolean;
   onSelectPerm: (permName: string) => void;
 }) {
-  const groups = groupPerms(ds, permIds);
-  // default: expand when the list is small enough to scan
-  const open = defaultOpen ?? permIds.length <= 60;
-  const [toggled, setToggled] = useState<Set<string>>(new Set());
-  const isOpen = (key: string) => (toggled.has(key) ? !open : open);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() =>
+    defaultOpen !== true && permIds.length > AUTO_COLLAPSE_THRESHOLD
+      ? new Set(allResourceKeys(ds, permIds))
+      : new Set(),
+  );
+
+  // permIds changed: reset collapse state back to the default (render-time
+  // reset, no effect needed — mirrors RoleList's prevQ ref pattern)
+  const prevPermIds = useRef(permIds);
+  if (prevPermIds.current !== permIds) {
+    prevPermIds.current = permIds;
+    const next =
+      defaultOpen !== true && permIds.length > AUTO_COLLAPSE_THRESHOLD
+        ? new Set(allResourceKeys(ds, permIds))
+        : new Set<string>();
+    setCollapsed(next);
+  }
+
   const toggle = (key: string) =>
-    setToggled((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+  const collapseAll = () => setCollapsed(new Set(allResourceKeys(ds, permIds)));
+  const expandAll = () => setCollapsed(new Set());
+
+  const rows = buildRows(ds, permIds, collapsed);
 
   return (
     <div className="text-sm">
-      {groups.map((g) => {
-        const names = g.permIds.map((id) => ds.permissions[id]);
-        const badges = badgesForPermissions(names);
-        const opened = isOpen(g.key);
-        return (
-          <div
-            key={g.key}
-            className="border-b border-gray-100 dark:border-gray-800 last:border-b-0"
+      {permIds.length >= BULK_TOGGLE_MIN && (
+        <div className="flex justify-end gap-2 border-b border-gray-100 px-2 py-0.5 text-[10px] dark:border-gray-800">
+          <button
+            type="button"
+            onClick={collapseAll}
+            className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
           >
-            <button
-              type="button"
-              onClick={() => toggle(g.key)}
-              className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-gray-900 cursor-pointer"
-            >
-              <span className="flex w-3 text-gray-400">
-                {opened ? (
-                  <ChevronDown size={14} className="inline-block" />
-                ) : (
-                  <ChevronRight size={14} className="inline-block" />
-                )}
-              </span>
-              <MonoName
-                name={g.key}
-                className="font-medium text-gray-800 dark:text-gray-200"
-              />
-              <span className="text-xs text-gray-400">{g.permIds.length}</span>
-              <span className="ml-auto flex gap-1">
-                {badges.map((b) => (
-                  <BadgeTag key={b.id} badge={b} />
-                ))}
-              </span>
-            </button>
-            {opened && (
-              <ul className="pb-1">
-                {g.permIds.map((id) => {
-                  const name = ds.permissions[id];
-                  const meta = ds.permMeta[id];
-                  return (
-                    <li key={id}>
-                      <button
-                        type="button"
-                        onClick={() => onSelectPerm(name)}
-                        title={meta?.description ?? name}
-                        className="flex w-full items-baseline gap-2 py-0.5 pr-2 pl-7 text-left hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
-                      >
-                        <span className="font-mono text-gray-700 dark:text-gray-300">
-                          {permParts(name).verb}
-                        </span>
-                        {meta?.title && (
-                          <span className="truncate text-xs text-gray-400">
-                            {meta.title}
-                          </span>
-                        )}
-                        {meta?.stage && (
-                          <span className="text-[10px] uppercase text-gray-400">
-                            {meta.stage}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+            すべて畳む
+          </button>
+          <button
+            type="button"
+            onClick={expandAll}
+            className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
+          >
+            すべて展開
+          </button>
+        </div>
+      )}
+      {rows.map((row) =>
+        row.type === "group" ? (
+          <GroupRowView
+            key={row.key}
+            ds={ds}
+            row={row}
+            onToggle={() => toggle(row.key)}
+          />
+        ) : (
+          <FlatRowView
+            key={row.id}
+            ds={ds}
+            row={row}
+            onSelectPerm={onSelectPerm}
+          />
+        ),
+      )}
     </div>
   );
 }
