@@ -41,7 +41,7 @@ export function isEmptyQuery(parsed: ParsedQuery): boolean {
 
 /** Case-insensitive substring match on the full permission name. */
 export function permNameMatches(name: string, term: string): boolean {
-  return name.toLowerCase().includes(term);
+  return name.toLowerCase().includes(term.toLowerCase());
 }
 
 /** permission ids whose name contains the term */

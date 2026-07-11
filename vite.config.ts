@@ -12,5 +12,9 @@ export default defineConfig(() => {
   return {
     base: getBasePath(),
     plugins: [tailwindcss(), reactRouter()],
+    test: {
+      environment: "node",
+      include: ["app/**/*.test.ts"],
+    },
   };
 });

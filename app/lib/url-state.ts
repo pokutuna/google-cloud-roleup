@@ -8,7 +8,7 @@ export interface SelItem {
   name: string;
 }
 
-function parseSel(raw: string | null): SelItem[] {
+export function parseSel(raw: string | null): SelItem[] {
   if (!raw) return [];
   const items: SelItem[] = [];
   for (const entry of raw.split(",")) {
@@ -18,7 +18,7 @@ function parseSel(raw: string | null): SelItem[] {
   return items;
 }
 
-function encodeSel(items: SelItem[]): string {
+export function encodeSel(items: SelItem[]): string {
   return items.map((it) => `${it.type}:${it.name}`).join(",");
 }
 

@@ -33,6 +33,7 @@ React Router v8, React 19, TypeScript, Tailwind CSS v4, Vite, Biome
 npm run dev           # Start dev server
 npm run build         # Build for production
 npm run typecheck     # Type checking
+npm test              # Run unit tests (vitest)
 npm run check         # Lint + format with auto-fix
 npm run generate-data # Regenerate public/data/roleup.json (needs gcloud login)
 ```
@@ -40,7 +41,7 @@ npm run generate-data # Regenerate public/data/roleup.json (needs gcloud login)
 ## GitHub Actions
 
 - **`deploy-pages.yml`**: Deploys `build/client/` to GitHub Pages on push to main
-- **`test.yaml`**: Type check, lint (warnings only), and build on push/PR
+- **`test.yaml`**: Type check, unit tests, lint (warnings only), and build on push/PR
 
 ## Dependency Upgrades
 
