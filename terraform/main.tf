@@ -19,6 +19,22 @@ provider "google" {
   project = var.project_id
 }
 
+# APIs required by the update-data.yml workflow:
+# - iamcredentials: WIF impersonation of the service account
+# - iam: roles.list / permissions:queryTestablePermissions (generate-data.ts)
+# - serviceusage: `gcloud services list --available` (generate-data.ts)
+resource "google_project_service" "required" {
+  for_each = toset([
+    "iamcredentials.googleapis.com",
+    "iam.googleapis.com",
+    "serviceusage.googleapis.com",
+  ])
+
+  project            = var.project_id
+  service            = each.value
+  disable_on_destroy = false
+}
+
 resource "google_service_account" "data_updater" {
   project      = var.project_id
   account_id   = var.service_account_id
@@ -50,6 +66,8 @@ module "gh_oidc" {
   project_id  = var.project_id
   pool_id     = "roleup-gh-pool"
   provider_id = "roleup-gh-provider"
+
+  depends_on = [google_project_service.required]
 
   # Restrict the provider so only this repository's OIDC tokens are
   # accepted, regardless of the `attribute` value on any sa_mapping entry.
