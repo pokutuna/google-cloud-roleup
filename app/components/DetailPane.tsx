@@ -206,26 +206,23 @@ function RelatedRoles({
     <div key={roleIndex} className="flex flex-col gap-4 p-3">
       <p className="text-[10px] text-gray-400">{t("detail.diffHint")}</p>
       {rel.sameService.length > 0 && (
-        <section>
-          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
-            {t("detail.sameService")}
-          </h3>
-          <ul>
-            {rel.sameService.map(([j, shared]) => {
-              const otherSize = ds.roles[j].permIds.length;
-              return (
-                <RelatedRoleRow
-                  key={ds.roles[j].name}
-                  ds={ds}
-                  state={state}
-                  otherIndex={j}
-                  plus={otherSize - shared}
-                  minus={anchorSize - shared}
-                />
-              );
-            })}
-          </ul>
-        </section>
+        <CollapsibleSection
+          title={t("detail.sameService")}
+          items={rel.sameService}
+          renderRow={([j, shared]) => {
+            const otherSize = ds.roles[j].permIds.length;
+            return (
+              <RelatedRoleRow
+                key={ds.roles[j].name}
+                ds={ds}
+                state={state}
+                otherIndex={j}
+                plus={otherSize - shared}
+                minus={anchorSize - shared}
+              />
+            );
+          }}
+        />
       )}
       {rel.supersets.length > 0 && (
         <CollapsibleSection

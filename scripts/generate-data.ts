@@ -332,7 +332,7 @@ function computeRelations(
       supersets: toppedSupersets,
       subsets: toppedSubsets,
       similar: toppedSimilar,
-      sameService: sameService.slice(0, TOP_K),
+      sameService,
     };
   }
   return relations;
