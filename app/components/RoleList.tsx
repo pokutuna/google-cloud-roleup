@@ -139,7 +139,9 @@ function RoleRow({
         onClick={() => state.select({ type: "r", name: short })}
         className="flex min-w-0 flex-1 items-baseline gap-2 text-left cursor-pointer"
       >
-        <span className="truncate text-gray-800 dark:text-gray-200">
+        {/* the role name never shrinks (the title truncates instead); the
+            max-width cap keeps the count visible for extremely long names */}
+        <span className="max-w-[calc(100%-3rem)] shrink-0 truncate text-gray-800 dark:text-gray-200">
           <MonoName name={short} />
         </span>
         {role.stage === "DEPRECATED" && <StageTag stage={role.stage} />}
@@ -159,7 +161,12 @@ function RoleRow({
             : "text-gray-400 opacity-0 hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-300"
         }`}
       >
-        <Pin size={12} className="inline-block" />
+        {/* filled = this role is pinned (its service header shows a stroke pin) */}
+        <Pin
+          size={12}
+          fill={rolePinned ? "currentColor" : "none"}
+          className="inline-block"
+        />
       </button>
     </div>
   );
@@ -440,11 +447,16 @@ export function RoleList({
                       isPinned
                         ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                         : isPinnedByRolesOnly
-                          ? "text-amber-300 hover:bg-amber-50 dark:text-amber-700 dark:hover:bg-amber-950/40"
+                          ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                           : "text-gray-400 opacity-0 hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                     }`}
                   >
-                    <Pin size={12} className="inline-block" />
+                    {/* filled = the service itself is pinned, stroke = it only contains pinned roles */}
+                    <Pin
+                      size={12}
+                      fill={isPinned ? "currentColor" : "none"}
+                      className="inline-block"
+                    />
                   </button>
                 )}
                 {item.prefix && (

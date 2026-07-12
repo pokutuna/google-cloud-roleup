@@ -63,6 +63,12 @@ const MESSAGES = {
     ja: "ロール・パーミッション検索",
     en: "Search roles & permissions",
   },
+  "header.unofficial": { ja: "Unofficial", en: "Unofficial" },
+  "header.unofficialTooltip": {
+    ja: "Google 非公式のツールです",
+    en: "Not an official Google product",
+  },
+  "header.repository": { ja: "GitHub リポジトリ", en: "GitHub repository" },
 
   // Omnibox
   "omnibox.placeholder": {
@@ -156,8 +162,8 @@ const MESSAGES = {
     ja: "未保持の権限も表示",
     en: "Show permissions not held",
   },
-  "compare.sortDiff": { ja: "差分順", en: "By difference" },
-  "compare.sortName": { ja: "権限名順", en: "By name" },
+  "compare.sortDiff": { ja: "差分でグループ化", en: "Group by diff" },
+  "compare.sortName": { ja: "permission 名順", en: "By permission name" },
   "compare.groupsAndRows": {
     ja: "{groups} グループ / {rows} 権限",
     en: "{groups} groups / {rows} permissions",
@@ -166,7 +172,7 @@ const MESSAGES = {
   "compare.common": { ja: "共通", en: "Common" },
   "compare.onlyIn": { ja: "{name} のみ", en: "{name} only" },
   "compare.unheld": { ja: "未保持", en: "Not held" },
-  "compare.none": { ja: "ありません", en: "None" },
+  "compare.none": { ja: "該当なし (0 件)", en: "No entries" },
 
   // ReversePane
   "reverse.service": { ja: "サービス", en: "Service" },

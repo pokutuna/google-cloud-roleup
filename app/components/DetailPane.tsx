@@ -116,7 +116,7 @@ function RelatedRoleRow({
         className="min-w-0 flex-1 truncate text-left text-gray-700 hover:underline dark:text-gray-300 cursor-pointer"
         title={other.title}
       >
-        <MonoName name={short} />
+        <MonoName name={other.name} />
       </button>
       <span className="relative flex h-5 shrink-0 items-center">
         <span className="transition-opacity group-hover:opacity-0">
@@ -275,8 +275,8 @@ export function DetailPane({
     <div className="flex h-full flex-col">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <div className="flex items-baseline gap-2">
-          <h2 className="font-mono text-lg font-bold text-gray-900 dark:text-gray-100">
-            {shortRoleName(role.name)}
+          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            <MonoName name={role.name} />
           </h2>
           <span className="text-sm text-gray-500">{role.title}</span>
           {role.stage && role.stage !== "GA" && (

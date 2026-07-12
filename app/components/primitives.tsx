@@ -132,7 +132,10 @@ export function StageTag({ stage }: { stage?: string }) {
   );
 }
 
-/** "bigquery.dataViewer" -> dim "bigquery." + normal "dataViewer" */
+/**
+ * "bigquery.dataViewer" -> dim "bigquery." + normal "dataViewer".
+ * A leading "roles/" (e.g. basic roles like "roles/admin") is dimmed too.
+ */
 export function MonoName({
   name,
   className,
@@ -140,14 +143,16 @@ export function MonoName({
   name: string;
   className?: string;
 }) {
+  const slash = name.startsWith("roles/") ? "roles/".length : 0;
   const dot = name.indexOf(".");
-  if (dot === -1) {
+  const split = dot === -1 ? slash : dot + 1;
+  if (split === 0) {
     return <span className={`font-mono ${className ?? ""}`}>{name}</span>;
   }
   return (
     <span className={`font-mono ${className ?? ""}`}>
-      <span className="opacity-70">{name.slice(0, dot + 1)}</span>
-      {name.slice(dot + 1)}
+      <span className="opacity-70">{name.slice(0, split)}</span>
+      {name.slice(split)}
     </span>
   );
 }

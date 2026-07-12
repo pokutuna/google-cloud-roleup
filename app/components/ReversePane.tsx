@@ -250,7 +250,7 @@ export function ReversePane({
                           className="min-w-0 flex-1 truncate text-left text-purple-700 hover:underline dark:text-purple-300 cursor-pointer"
                           title={role.title}
                         >
-                          <MonoName name={short} />
+                          <MonoName name={role.name} />
                         </button>
                         <span className="relative flex h-5 shrink-0 items-center">
                           <span className="text-xs text-gray-400 transition-opacity group-hover:opacity-0">

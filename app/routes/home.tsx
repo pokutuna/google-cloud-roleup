@@ -12,7 +12,7 @@ import { filterRoles, parseQuery } from "../lib/search";
 import { useExplorerState } from "../lib/url-state";
 import type { Route } from "./+types/home";
 
-const SIDEBAR_DEFAULT_WIDTH = 380;
+const SIDEBAR_DEFAULT_WIDTH = 440;
 const SIDEBAR_MIN_WIDTH = 260;
 const SIDEBAR_MAX_WIDTH = 640;
 

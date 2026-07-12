@@ -101,7 +101,7 @@ function labelPartsForMask(
     return [{ text: t("compare.common"), className: COMMON_SECTION.text }];
   }
   const names = roleIndexes
-    .map((roleIdx, i) => ({ i, name: shortRoleName(ds.roles[roleIdx].name) }))
+    .map((roleIdx, i) => ({ i, name: ds.roles[roleIdx].name }))
     .filter(({ i }) => mask & (1 << i));
   if (names.length === 1) {
     return [
@@ -122,6 +122,40 @@ function labelPartsForMask(
     parts.push({ text: name, className: seriesColor(i).text });
   });
   return parts;
+}
+
+/**
+ * Tiny inline pie chart for a held/total ratio (the stroke-width trick:
+ * a half-radius circle with a stroke as wide as the radius fills the disc).
+ */
+function SparkPie({ ratio }: { ratio: number }) {
+  const C = 2 * Math.PI * 5;
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className="size-3 shrink-0 -rotate-90"
+      aria-hidden="true"
+    >
+      <circle
+        cx="10"
+        cy="10"
+        r="5"
+        fill="none"
+        stroke="currentColor"
+        strokeOpacity="0.2"
+        strokeWidth="10"
+      />
+      <circle
+        cx="10"
+        cy="10"
+        r="5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="10"
+        strokeDasharray={`${ratio * C} ${C}`}
+      />
+    </svg>
+  );
 }
 
 function MatrixView({
@@ -325,12 +359,16 @@ function MatrixView({
                 key={roleIdx}
                 className="border-l border-gray-100 px-1 py-1 text-center tabular-nums dark:border-gray-800"
               >
-                <span className={`text-[10px] ${cls}`}>
+                <span
+                  className={`inline-flex items-center gap-1 text-xs ${cls}`}
+                >
+                  <SparkPie ratio={held / g.permIds.length} />
                   {held}/{g.permIds.length}
                 </span>
               </td>
             );
           })}
+          <td />
         </tr>
         {opened &&
           g.permIds.map((id) => {
@@ -348,10 +386,10 @@ function MatrixView({
                     title={ds.permMeta[id]?.description ?? name}
                     className="block w-full cursor-pointer truncate py-0.5 pr-2 pl-7 text-left font-mono hover:underline"
                   >
-                    <span className="text-gray-300 dark:text-gray-700">
+                    <span className="text-gray-400 dark:text-gray-500">
                       {permParts(name).group}.
                     </span>
-                    <span className="text-gray-700 dark:text-gray-300">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
                       {permParts(name).verb}
                     </span>
                   </button>
@@ -365,7 +403,7 @@ function MatrixView({
                       className="border-l border-gray-100 text-center dark:border-gray-800"
                     >
                       {has ? (
-                        <Check size={14} className={`inline-block ${c.text}`} />
+                        <Check size={16} className={`inline-block ${c.text}`} />
                       ) : (
                         <span className="text-gray-300 dark:text-gray-700">
                           −
@@ -374,6 +412,7 @@ function MatrixView({
                     </td>
                   );
                 })}
+                <td />
               </tr>
             );
           })}
@@ -383,7 +422,31 @@ function MatrixView({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-gray-200 px-3 py-1.5 dark:border-gray-800">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-1.5 dark:border-gray-800">
+        <div className="flex shrink-0 items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setSortMode("diff")}
+            className={`whitespace-nowrap rounded px-2 py-0.5 text-sm cursor-pointer ${
+              sortMode === "diff"
+                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            }`}
+          >
+            {t("compare.sortDiff")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortMode("name")}
+            className={`whitespace-nowrap rounded px-2 py-0.5 text-sm cursor-pointer ${
+              sortMode === "name"
+                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            }`}
+          >
+            {t("compare.sortName")}
+          </button>
+        </div>
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
           <input
             type="checkbox"
@@ -402,36 +465,18 @@ function MatrixView({
           />
           {t("compare.showUnheld")}
         </label>
-        <div className="flex items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={() => setSortMode("diff")}
-            className={`rounded px-1.5 py-0.5 text-xs cursor-pointer ${
-              sortMode === "diff"
-                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            }`}
-          >
-            {t("compare.sortDiff")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setSortMode("name")}
-            className={`rounded px-1.5 py-0.5 text-xs cursor-pointer ${
-              sortMode === "name"
-                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            }`}
-          >
-            {t("compare.sortName")}
-          </button>
-        </div>
         <span className="ml-auto text-[10px] text-gray-400">
           {t("compare.groupsAndRows", { groups: groupCount, rows: totalRows })}
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
-        <table className="w-full border-collapse text-sm">
+        {/* fixed layout: the trailing spacer column absorbs the leftover
+            width so the role columns hug the permission column instead of
+            spreading across the pane */}
+        <table
+          className="w-full table-fixed border-collapse text-sm"
+          style={{ minWidth: `calc(14rem + ${roleIndexes.length} * 5rem)` }}
+        >
           <thead>
             <tr className="sticky top-0 z-10 bg-white dark:bg-gray-950">
               <th className="sticky left-0 z-20 w-56 min-w-56 border-r border-b border-gray-200 bg-white px-2 py-1.5 text-left align-bottom dark:border-gray-800 dark:bg-gray-950">
@@ -442,22 +487,39 @@ function MatrixView({
               {roleIndexes.map((roleIdx, i) => {
                 const role = ds.roles[roleIdx];
                 const c = seriesColor(i);
+                // break after "roles/<service>." so long names don't blow up
+                // the column ("roles/admin" splits into "roles/" + "admin")
+                const dot = role.name.indexOf(".");
+                const head =
+                  dot === -1 ? "roles/" : role.name.slice(0, dot + 1);
+                const tail =
+                  dot === -1
+                    ? shortRoleName(role.name)
+                    : role.name.slice(dot + 1);
                 return (
                   <th
                     key={roleIdx}
                     className="w-20 border-b border-l border-gray-100 border-b-gray-200 px-1 py-1.5 text-center align-bottom dark:border-gray-800 dark:border-b-gray-800"
-                    title={shortRoleName(role.name)}
+                    title={role.name}
                   >
-                    <MonoName
-                      name={shortRoleName(role.name)}
-                      className={`block truncate text-[11px] font-semibold ${c.text}`}
-                    />
+                    <span
+                      className={`block truncate font-mono text-[10px] font-normal opacity-70 ${c.text}`}
+                    >
+                      {head}
+                    </span>
+                    <span
+                      className={`block truncate font-mono text-[11px] font-semibold ${c.text}`}
+                    >
+                      {tail}
+                    </span>
                     <span className="text-[10px] text-gray-400">
                       {role.permIds.length}
                     </span>
                   </th>
                 );
               })}
+              {/* spacer column: absorbs the leftover pane width */}
+              <th className="border-b border-gray-200 dark:border-gray-800" />
             </tr>
           </thead>
           <tbody>
@@ -479,7 +541,7 @@ function MatrixView({
                           onClick={() => toggle(s.key)}
                         >
                           <td
-                            colSpan={roleIndexes.length + 1}
+                            colSpan={roleIndexes.length + 2}
                             className="sticky left-0 z-10 bg-white px-3 py-1.5 dark:bg-gray-950"
                           >
                             <span className="flex items-center gap-2">
@@ -518,7 +580,7 @@ function MatrixView({
                         {sectionOpen && isEmpty && (
                           <tr className="border-b border-gray-50 dark:border-gray-900">
                             <td
-                              colSpan={roleIndexes.length + 1}
+                              colSpan={roleIndexes.length + 2}
                               className="py-0.5 pl-9 text-xs text-gray-400"
                             >
                               {t("compare.none")}
@@ -581,7 +643,7 @@ export function ComparePane({
                   key={roleIdx}
                   className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${c.bgSoft} ${c.text}`}
                 >
-                  <MonoName name={shortRoleName(role.name)} />
+                  <MonoName name={role.name} />
                   <span className="opacity-70">{role.permIds.length}</span>
                 </span>
               );
