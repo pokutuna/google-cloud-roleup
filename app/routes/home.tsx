@@ -1,5 +1,5 @@
 import { GripVertical, PanelLeftOpen } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ComparePane } from "../components/ComparePane";
 import { DetailPane } from "../components/DetailPane";
 import { GuidePane } from "../components/GuidePane";
@@ -10,6 +10,7 @@ import { isServiceAgent, loadDataset } from "../lib/data";
 import { detectLang, getMessage, useT } from "../lib/i18n";
 import { filterRoles, parseQuery } from "../lib/search";
 import { useExplorerState } from "../lib/url-state";
+import { useIsMobile } from "../lib/use-media-query";
 import type { Route } from "./+types/home";
 
 const SIDEBAR_DEFAULT_WIDTH = 440;
@@ -33,6 +34,8 @@ export async function clientLoader(_: Route.ClientLoaderArgs) {
 export default function Home({ loaderData: ds }: Route.ComponentProps) {
   const t = useT();
   const state = useExplorerState();
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState<"list" | "pane">("list");
   const [expanded, setExpanded] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [dragging, setDragging] = useState(false);
@@ -67,6 +70,30 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
     [],
   );
 
+  // mobile: wrap state so row/permission clicks auto-switch to the pane tab,
+  // while checkbox toggles (comparison) keep the user on the list tab
+  const mobileState = useMemo(
+    () =>
+      isMobile
+        ? {
+            ...state,
+            select: (item: Parameters<typeof state.select>[0]) => {
+              state.select(item);
+              setMobileTab("pane");
+            },
+            anchorPerm: (name: string) => {
+              state.anchorPerm(name);
+              setMobileTab("pane");
+            },
+          }
+        : state,
+    [isMobile, state],
+  );
+
+  useEffect(() => {
+    if (isMobile && state.selection.length === 0) setMobileTab("list");
+  }, [isMobile, state.selection.length]);
+
   const filtered = useMemo(() => {
     const idxs = filterRoles(ds, parseQuery(state.q));
     return state.showServiceAgents
@@ -92,70 +119,123 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
     .find((it) => it.type === "p");
   const permId = permAnchor ? ds.permIdByName.get(permAnchor.name) : undefined;
 
+  // pass mobileState on mobile (so select/anchorPerm trigger tab switches),
+  // the raw state on desktop (behavior unchanged)
+  const paneState = isMobile ? mobileState : state;
+
   const rightPane =
     permId !== undefined ? (
-      <ReversePane ds={ds} state={state} permId={permId} />
+      <ReversePane ds={ds} state={paneState} permId={permId} />
     ) : selRoleIdxs.length >= 2 ? (
-      <ComparePane ds={ds} state={state} roleIndexes={selRoleIdxs} />
+      <ComparePane ds={ds} state={paneState} roleIndexes={selRoleIdxs} />
     ) : selRoleIdxs.length === 1 ? (
-      <DetailPane ds={ds} state={state} roleIndex={selRoleIdxs[0]} />
+      <DetailPane ds={ds} state={paneState} roleIndex={selRoleIdxs[0]} />
     ) : (
-      <GuidePane state={state} />
+      <GuidePane state={paneState} />
     );
+
+  const roleList = (
+    <RoleList
+      ds={ds}
+      state={paneState}
+      roleIndexes={filtered}
+      totalCount={totalRoleCount}
+      onCollapse={() => setExpanded(true)}
+    />
+  );
+
+  const paneTabLabel =
+    permId !== undefined
+      ? t("home.tabReverse")
+      : selRoleIdxs.length >= 2
+        ? t("home.tabCompare", { n: selRoleIdxs.length })
+        : t("home.tabDetail");
 
   return (
     <div
       className={`flex h-dvh flex-col text-gray-900 dark:text-gray-100 ${dragging ? "select-none" : ""}`}
     >
       <HeaderBar ds={ds} state={state} />
-      <div className="flex min-h-0 flex-1">
-        {!expanded && (
-          <>
-            <aside
-              style={{ width: sidebarWidth }}
-              className="shrink-0 border-r border-gray-200 dark:border-gray-800"
-            >
-              <RoleList
-                ds={ds}
-                state={state}
-                roleIndexes={filtered}
-                totalCount={totalRoleCount}
-                onCollapse={() => setExpanded(true)}
-              />
-            </aside>
-            <div
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              className="group relative z-10 -ml-1 w-2 shrink-0 cursor-col-resize touch-none"
-            >
-              <div
-                className={`pointer-events-none absolute top-1/2 left-1/2 flex h-6 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 text-gray-500 opacity-0 dark:bg-gray-700 dark:text-gray-400 ${
-                  dragging
-                    ? "opacity-100"
-                    : "group-hover:opacity-100 transition-opacity"
-                }`}
-              >
-                <GripVertical size={12} />
-              </div>
-            </div>
-          </>
-        )}
-        <main className="relative min-w-0 flex-1">
-          {expanded && (
+      {isMobile ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex shrink-0 border-b border-gray-200 dark:border-gray-800">
             <button
               type="button"
-              onClick={() => setExpanded(false)}
-              title={t("home.showList")}
-              aria-label={t("home.showList")}
-              className="absolute top-2 left-2 z-20 rounded border border-gray-200 bg-white p-1 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:hover:text-gray-300 cursor-pointer"
+              onClick={() => setMobileTab("list")}
+              aria-pressed={mobileTab === "list"}
+              className={`flex-1 border-b-2 px-3 py-2 text-center text-sm font-medium cursor-pointer ${
+                mobileTab === "list"
+                  ? "border-purple-600 text-purple-700 dark:border-purple-400 dark:text-purple-300"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              }`}
             >
-              <PanelLeftOpen size={14} />
+              {t("home.tabList")}
             </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab("pane")}
+              aria-pressed={mobileTab === "pane"}
+              className={`flex-1 border-b-2 px-3 py-2 text-center text-sm font-medium cursor-pointer ${
+                mobileTab === "pane"
+                  ? "border-purple-600 text-purple-700 dark:border-purple-400 dark:text-purple-300"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              }`}
+            >
+              {paneTabLabel}
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            {mobileTab === "list" ? (
+              <div className="h-full w-full">{roleList}</div>
+            ) : (
+              <div className="h-full w-full">{rightPane}</div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          {!expanded && (
+            <>
+              <aside
+                style={{ width: sidebarWidth }}
+                className="shrink-0 border-r border-gray-200 dark:border-gray-800"
+              >
+                {roleList}
+              </aside>
+              <div
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                className="group relative z-10 -ml-1 w-2 shrink-0 cursor-col-resize touch-none"
+              >
+                <div
+                  className={`pointer-events-none absolute top-1/2 left-1/2 flex h-6 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 text-gray-500 opacity-0 dark:bg-gray-700 dark:text-gray-400 ${
+                    dragging
+                      ? "opacity-100"
+                      : "group-hover:opacity-100 transition-opacity"
+                  }`}
+                >
+                  <GripVertical size={12} />
+                </div>
+              </div>
+            </>
           )}
-          {rightPane}
-        </main>
-      </div>
+          <main className="relative min-w-0 flex-1">
+            {expanded && (
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                title={t("home.showList")}
+                aria-label={t("home.showList")}
+                className="absolute top-2 left-2 z-20 rounded border border-gray-200 bg-white p-1 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:hover:text-gray-300 cursor-pointer"
+              >
+                <PanelLeftOpen size={14} />
+              </button>
+            )}
+            {rightPane}
+          </main>
+        </div>
+      )}
     </div>
   );
 }

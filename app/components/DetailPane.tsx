@@ -272,7 +272,7 @@ export function DetailPane({
   ];
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-y-auto md:overflow-y-hidden">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -298,8 +298,8 @@ export function DetailPane({
           <p className="mt-1 text-sm text-gray-500">{role.description}</p>
         )}
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
-        <div className="flex min-h-0 flex-col">
+      <div className="grid grid-cols-1 divide-y divide-gray-200 md:min-h-0 md:flex-1 md:grid-cols-2 md:divide-x md:divide-y-0 dark:divide-gray-800">
+        <div className="flex flex-col md:min-h-0">
           <p className="border-b border-gray-100 p-2 text-[10px] text-gray-400 dark:border-gray-800">
             {t("detail.clickToReverseLookup")}
           </p>
@@ -311,7 +311,7 @@ export function DetailPane({
               onClear={() => state.setQ(stripPermQualifiers(state.q))}
             />
           )}
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
             {filtered.length === 0 && missTerm ? (
               <MissTeaser ds={ds} state={state} term={missTerm} />
             ) : (
@@ -324,7 +324,7 @@ export function DetailPane({
             )}
           </div>
         </div>
-        <div className="min-h-0 overflow-y-auto">
+        <div className="md:min-h-0 md:overflow-y-auto">
           <h3 className="px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
             {t("detail.relatedRoles")}
             <span className="ml-1 font-normal normal-case text-gray-400">

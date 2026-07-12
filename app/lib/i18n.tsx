@@ -259,6 +259,11 @@ const MESSAGES = {
 
   // home.tsx
   "home.showList": { ja: "リストを表示", en: "Show list" },
+  "home.backToList": { ja: "一覧に戻る", en: "Back to list" },
+  "home.tabList": { ja: "一覧", en: "List" },
+  "home.tabDetail": { ja: "詳細", en: "Detail" },
+  "home.tabCompare": { ja: "比較 ({n})", en: "Compare ({n})" },
+  "home.tabReverse": { ja: "逆引き", en: "Lookup" },
 
   // Badges
   "badge.iam.label": { ja: "IAM変更", en: "IAM change" },

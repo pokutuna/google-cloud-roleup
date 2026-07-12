@@ -131,7 +131,7 @@ export function ReversePane({
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-y-auto md:overflow-y-hidden">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <div className="flex flex-wrap items-baseline gap-2">
           <h2 className="font-mono text-lg font-bold text-rose-700 dark:text-rose-300">
@@ -167,8 +167,8 @@ export function ReversePane({
           </p>
         )}
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
-        <div className="min-h-0 overflow-y-auto p-3">
+      <div className="grid grid-cols-1 divide-y divide-gray-200 md:min-h-0 md:flex-1 md:grid-cols-2 md:divide-x md:divide-y-0 dark:divide-gray-800">
+        <div className="p-3 md:min-h-0 md:overflow-y-auto">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
             {t("reverse.service")}
           </h3>
@@ -204,7 +204,7 @@ export function ReversePane({
             ))}
           </ul>
         </div>
-        <div className="min-h-0 overflow-y-auto p-3">
+        <div className="p-3 md:min-h-0 md:overflow-y-auto">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               {t("reverse.rolesWithPermission", { n: visibleIdxs.length })}

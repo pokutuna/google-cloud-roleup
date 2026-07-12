@@ -211,25 +211,27 @@ export function HeaderBar({
         >
           {t("header.unofficial")}
         </span>
-        <span className="ml-auto shrink-0 text-[10px] text-gray-400">
+        <span className="hidden shrink-0 text-[10px] text-gray-400 md:ml-auto md:inline">
           {t("header.dataStats", {
             date: ds.generatedAt,
             roles: ds.roles.length,
             perms: ds.permissions.length,
           })}
         </span>
-        <LangMenu />
-        <SettingsMenu />
-        <a
-          href="https://github.com/pokutuna/google-cloud-roleup"
-          target="_blank"
-          rel="noreferrer"
-          title={t("header.repository")}
-          aria-label={t("header.repository")}
-          className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-        >
-          <GithubIcon />
-        </a>
+        <div className="ml-auto flex shrink-0 items-center gap-1 md:ml-0">
+          <LangMenu />
+          <SettingsMenu />
+          <a
+            href="https://github.com/pokutuna/google-cloud-roleup"
+            target="_blank"
+            rel="noreferrer"
+            title={t("header.repository")}
+            aria-label={t("header.repository")}
+            className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          >
+            <GithubIcon />
+          </a>
+        </div>
       </div>
       <Legend state={state} />
       <Omnibox ds={ds} state={state} />

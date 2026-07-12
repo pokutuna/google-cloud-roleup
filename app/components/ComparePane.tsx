@@ -278,7 +278,7 @@ function MatrixView({
     onPointerMove: moveColDrag,
     onPointerUp: endColDrag,
     className:
-      "absolute inset-y-0 -right-1 z-30 w-2 cursor-col-resize hover:bg-purple-300/50 dark:hover:bg-purple-700/50",
+      "absolute inset-y-0 -right-1 z-30 hidden w-2 cursor-col-resize hover:bg-purple-300/50 md:block dark:hover:bg-purple-700/50",
   });
 
   const commonCount = useMemo(() => {
@@ -542,7 +542,7 @@ function MatrixView({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-1.5 dark:border-gray-800">
         <div className="flex shrink-0 items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
           <button
@@ -604,7 +604,7 @@ function MatrixView({
           {t("compare.groupsAndRows", { groups: groupCount, rows: totalRows })}
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
         {/* fixed layout: the trailing spacer column absorbs the leftover
             width so the role columns hug the permission column instead of
             spreading across the pane */}
@@ -774,7 +774,7 @@ export function ComparePane({
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
@@ -805,7 +805,7 @@ export function ComparePane({
           onClear={() => state.setQ(stripPermQualifiers(state.q))}
         />
       )}
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 min-w-0 flex-1">
         <MatrixView
           ds={ds}
           state={state}
