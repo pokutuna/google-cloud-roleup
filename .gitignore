@@ -8,3 +8,9 @@
 # React Router
 /.react-router/
 /build/
+
+# Terraform (local state; no remote backend)
+/terraform/.terraform/
+/terraform/*.tfstate
+/terraform/*.tfstate.*
+/terraform/*.tfvars

@@ -42,6 +42,7 @@ npm run generate-data # Regenerate public/data/roleup.json (needs gcloud login)
 
 - **`deploy-pages.yml`**: Deploys `build/client/` to GitHub Pages on push to main
 - **`test.yaml`**: Type check, unit tests, lint (warnings only), and build on push/PR
+- **`update-data.yml`**: Weekly cron (+ manual dispatch) that regenerates `public/data/roleup.json` via WIF-authenticated GCP access and opens an auto-merging PR; see [docs/data-update-automation.md](docs/data-update-automation.md)
 
 ## Dependency Upgrades
 

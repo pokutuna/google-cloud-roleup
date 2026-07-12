@@ -1,0 +1,77 @@
+name: Update data
+
+# Regenerates public/data/roleup.json from the IAM APIs on a weekly cron and
+# opens a PR when the data changed. Test failures or the anomaly check inside
+# generate-data.ts (>10% drop in roles/permissions) fail the run so a human
+# has to look; nothing is force-merged past that.
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays, 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: ".node-version"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Generate data
+        run: npm run generate-data
+
+      - name: Check for changes
+        id: diff
+        # generatedAt is stamped on every run, so this is true on any run
+        # except a same-day re-run with identical data; the weekly PR that
+        # only advances generatedAt is intentional (keeps the "data: ..."
+        # stamp in the UI fresh).
+        run: |
+          if git diff --quiet public/data/roleup.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "generated-at=$(jq -r .generatedAt public/data/roleup.json)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test
+        if: steps.diff.outputs.changed == 'true'
+        run: npm test
+
+      - name: Create pull request
+        if: steps.diff.outputs.changed == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.DATA_UPDATE_PAT }}
+          branch: data-update
+          commit-message: "data: update roleup.json (${{ steps.diff.outputs.generated-at }})"
+          title: "data: update roleup.json (${{ steps.diff.outputs.generated-at }})"
+          body: Automated update of `public/data/roleup.json` via the `update-data` workflow.
+          add-paths: public/data/roleup.json
+
+      - name: Enable auto-merge
+        if: steps.diff.outputs.changed == 'true' && steps.cpr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.DATA_UPDATE_PAT }}
+        run: gh pr merge --auto --squash "${{ steps.cpr.outputs.pull-request-number }}"
