@@ -7,8 +7,8 @@ import {
   useMemo,
   useState,
 } from "react";
-import { detectLang, getMessage, LANG_STORAGE_KEY } from "./i18n-data";
 import type { Lang, Translate } from "./i18n-data";
+import { detectLang, getMessage, LANG_STORAGE_KEY } from "./i18n-data";
 
 interface LangContextValue {
   lang: Lang;

@@ -1,6 +1,7 @@
 import { Languages, Settings } from "lucide-react";
 import type { SVGProps } from "react";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import type { Dataset } from "../lib/data";
 import { useLang, useT } from "../lib/i18n";
 import { LANGS } from "../lib/i18n-data";
@@ -204,7 +205,9 @@ export function HeaderBar({
     <header className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
       <div className="flex items-center gap-3">
         <h1 className="shrink-0 text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-          Google Cloud RoleUp
+          <Link to="/" className="hover:underline">
+            Google Cloud RoleUp
+          </Link>
         </h1>
         <span className="hidden shrink-0 text-[10px] text-gray-400 md:ml-auto md:inline">
           {t("header.dataStats", {

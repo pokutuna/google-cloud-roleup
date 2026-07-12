@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  X,
 } from "lucide-react";
 import {
   Fragment,
@@ -1095,6 +1096,21 @@ export function ComparePane({
                 >
                   <MonoName name={role.name} />
                   <span className="opacity-70">{role.permIds.length}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      state.remove({
+                        type: "r",
+                        name: shortRoleName(role.name),
+                      })
+                    }
+                    aria-label={t("primitives.deselect", {
+                      label: role.name,
+                    })}
+                    className="ml-0.5 opacity-60 hover:opacity-100 cursor-pointer"
+                  >
+                    <X size={12} className="inline-block" />
+                  </button>
                 </span>
               );
             })}
