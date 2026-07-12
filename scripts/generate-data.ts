@@ -86,9 +86,10 @@ interface RelationOut {
    */
   similar: [number, number, number][];
   /**
-   * Same-service roles (same role-name prefix) that are NOT already listed in
-   * supersets/subsets/similar, most overlap first. Each entry is
-   * [roleIndex, sharedCount] (sharedCount may be 0). Basic roles have none.
+   * All same-service roles (same role-name prefix), regardless of whether
+   * they're already listed in supersets/subsets/similar, most overlap first.
+   * Each entry is [roleIndex, sharedCount] (sharedCount may be 0). Basic
+   * roles have none.
    */
   sameService: [number, number][];
 }
@@ -312,16 +313,10 @@ function computeRelations(
         jaccardPct,
         sharedCount,
       ]);
-    const alreadyListed = new Set<number>([
-      ...toppedSupersets,
-      ...toppedSubsets,
-      ...toppedSimilar.map((s) => s[0]),
-    ]);
-
     const sameService: [number, number][] = [];
     if (service !== null) {
       for (let j = 0; j < roles.length; j++) {
-        if (j === i || alreadyListed.has(j)) continue;
+        if (j === i) continue;
         if (!roles[j].name.startsWith(`roles/${service}.`)) continue;
         sameService.push([j, sharedAt(i, j)]);
       }
