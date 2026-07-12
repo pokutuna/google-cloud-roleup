@@ -304,14 +304,14 @@ export function DetailPane({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h2 className="min-w-0 shrink-0 break-words text-lg font-bold text-gray-900 dark:text-gray-100">
             <MonoName name={role.name} />
           </h2>
-          <span className="text-sm text-gray-500">{role.title}</span>
+          <span className="min-w-0 text-sm text-gray-500">{role.title}</span>
           {role.stage && role.stage !== "GA" && (
             <span
-              className={`rounded px-1 text-xs uppercase ${
+              className={`shrink-0 rounded px-1 text-xs uppercase ${
                 role.stage === "DEPRECATED"
                   ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
                   : "bg-gray-100 text-gray-500 dark:bg-gray-800"
@@ -320,7 +320,7 @@ export function DetailPane({
               {role.stage}
             </span>
           )}
-          <span className="ml-auto text-sm text-gray-400">
+          <span className="ml-auto shrink-0 text-sm text-gray-400">
             {role.permIds.length} permissions
           </span>
         </div>
