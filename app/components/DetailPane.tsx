@@ -54,8 +54,8 @@ function MissTeaser({
     );
   }
   return (
-    <div className="m-3 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
-      <p className="font-medium text-amber-900 dark:text-amber-200">
+    <div className="m-3 rounded border border-rose-300 bg-rose-50 p-3 text-sm dark:border-rose-800 dark:bg-rose-950/40">
+      <p className="font-medium text-rose-900 dark:text-rose-200">
         {t("detail.notInThisRole")}
       </p>
       <button
@@ -63,7 +63,7 @@ function MissTeaser({
         onClick={() =>
           exact ? state.anchorPerm(exact) : state.setQ(`p:${term} `)
         }
-        className="mt-1 text-amber-800 underline dark:text-amber-300 cursor-pointer"
+        className="mt-1 text-rose-800 underline dark:text-rose-300 cursor-pointer"
       >
         {t("detail.reverseLookupCount", { term, count: roleCount })}
       </button>

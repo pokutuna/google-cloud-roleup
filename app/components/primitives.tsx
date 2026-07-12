@@ -79,7 +79,7 @@ export function BadgeTag({ badge }: { badge: Badge | BadgeWithMatches }) {
 
 /**
  * One-line notice shown when the top search bar's s:/p: tokens are
- * narrowing the pane's permission list. Mirrors MissTeaser's amber
+ * narrowing the pane's permission list. Mirrors MissTeaser's rose
  * tone but stays compact (text-xs) since it's a persistent indicator.
  */
 export function PermFilterNotice({
@@ -95,12 +95,12 @@ export function PermFilterNotice({
 }) {
   const t = useT();
   return (
-    <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+    <div className="flex items-center gap-2 border-b border-rose-200 bg-rose-50 px-3 py-1.5 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
       <span className="flex flex-wrap items-center gap-1">
         {terms.map((term) => (
           <span
             key={term}
-            className="rounded bg-amber-100 px-1 font-mono dark:bg-amber-900/60"
+            className="rounded bg-rose-100 px-1 font-mono dark:bg-rose-900/60"
           >
             {term}
           </span>
@@ -112,7 +112,7 @@ export function PermFilterNotice({
         onClick={onClear}
         title={t("primitives.clearFilter")}
         aria-label={t("primitives.clearFilter")}
-        className="ml-auto rounded p-0.5 text-amber-700 hover:bg-amber-100 hover:text-amber-900 cursor-pointer dark:text-amber-300 dark:hover:bg-amber-900/60 dark:hover:text-amber-100"
+        className="ml-auto rounded p-0.5 text-rose-700 hover:bg-rose-100 hover:text-rose-900 cursor-pointer dark:text-rose-300 dark:hover:bg-rose-900/60 dark:hover:text-rose-100"
       >
         <X size={12} className="inline-block" />
       </button>

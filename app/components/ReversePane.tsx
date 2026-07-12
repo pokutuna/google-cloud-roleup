@@ -134,7 +134,7 @@ export function ReversePane({
     <div className="flex h-full flex-col">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <div className="flex flex-wrap items-baseline gap-2">
-          <h2 className="font-mono text-lg font-bold text-amber-700 dark:text-amber-300">
+          <h2 className="font-mono text-lg font-bold text-rose-700 dark:text-rose-300">
             {name}
           </h2>
           {badges.map((b) => (
@@ -189,7 +189,7 @@ export function ReversePane({
                 <button
                   type="button"
                   onClick={() => state.anchorPerm(ds.permissions[id])}
-                  className="flex w-full items-baseline gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
+                  className="flex w-full items-baseline gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                 >
                   <span className="font-mono text-gray-700 dark:text-gray-300">
                     {permParts(ds.permissions[id]).verb}

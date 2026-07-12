@@ -170,6 +170,8 @@ const MESSAGES = {
   },
   "compare.permissionColumn": { ja: "権限", en: "Permission" },
   "compare.common": { ja: "共通", en: "Common" },
+  "compare.allShared": { ja: "共通 ", en: "Shared " },
+  "compare.reverseOrder": { ja: "逆順", en: "Reverse" },
   "compare.onlyIn": { ja: "{name} のみ", en: "{name} only" },
   "compare.unheld": { ja: "未保持", en: "Not held" },
   "compare.none": { ja: "該当なし (0 件)", en: "No entries" },

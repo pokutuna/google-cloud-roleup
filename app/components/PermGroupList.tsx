@@ -138,7 +138,7 @@ function FlatRowView({
       type="button"
       onClick={() => onSelectPerm(row.name)}
       title={meta?.description ?? row.name}
-      className="flex w-full items-baseline gap-1.5 border-b border-gray-50 py-0.5 pr-2 pl-2 text-left text-sm hover:bg-amber-50 dark:border-gray-900 dark:hover:bg-amber-950/40 cursor-pointer"
+      className="flex w-full items-baseline gap-1.5 border-b border-gray-50 py-0.5 pr-2 pl-2 text-left text-sm hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/40 cursor-pointer"
     >
       <span className="w-3.5 shrink-0" />
       <span className="truncate font-mono">

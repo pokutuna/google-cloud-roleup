@@ -1,5 +1,5 @@
-import { Check, ChevronDown, ChevronRight } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { ArrowUpDown, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { badgesForPermissions } from "../lib/badges";
 import { type Dataset, permParts, shortRoleName } from "../lib/data";
 import { type Translate, useT } from "../lib/i18n";
@@ -15,6 +15,9 @@ import { COMMON_SECTION, seriesColor } from "./colors";
 import { BadgeTag, MonoName, PermFilterNotice } from "./primitives";
 
 type SortMode = "diff" | "name";
+
+/** Wide enough to read typical "service.resource.verb" permission names. */
+const PERM_COL_DEFAULT_WIDTH = 320;
 
 /**
  * Membership-driven sections: permId -> bitmask of which roles (by position)
@@ -89,20 +92,35 @@ interface DiffSection {
   alwaysShow: boolean;
 }
 
+const INTERSECTION_SEP = {
+  text: " ∩ ",
+  className: "px-1 text-gray-400 dark:text-gray-600",
+};
+
 function labelPartsForMask(
   roleIndexes: number[],
   ds: Dataset,
   mask: number,
   t: Translate,
+  reversed: boolean,
 ): LabelPart[] {
   const n = roleIndexes.length;
   const full = (1 << n) - 1;
-  if (mask === full) {
-    return [{ text: t("compare.common"), className: COMMON_SECTION.text }];
-  }
-  const names = roleIndexes
+  let names = roleIndexes
     .map((roleIdx, i) => ({ i, name: ds.roles[roleIdx].name }))
     .filter(({ i }) => mask & (1 << i));
+  if (reversed) names = [...names].reverse();
+
+  if (mask === full) {
+    const parts: LabelPart[] = [
+      { text: t("compare.allShared"), className: COMMON_SECTION.text },
+    ];
+    names.forEach(({ name }, idx) => {
+      if (idx > 0) parts.push(INTERSECTION_SEP);
+      parts.push({ text: name, className: COMMON_SECTION.text });
+    });
+    return parts;
+  }
   if (names.length === 1) {
     return [
       {
@@ -113,15 +131,43 @@ function labelPartsForMask(
   }
   const parts: LabelPart[] = [];
   names.forEach(({ i, name }, idx) => {
-    if (idx > 0) {
-      parts.push({
-        text: " · ",
-        className: "text-gray-400 dark:text-gray-600",
-      });
-    }
+    if (idx > 0) parts.push(INTERSECTION_SEP);
     parts.push({ text: name, className: seriesColor(i).text });
   });
   return parts;
+}
+
+/** Small dot-row visualizing which role positions participate in a mask:
+ * filled in the role's series color when held, hollow gray otherwise. */
+function DotRow({
+  mask,
+  n,
+  reversed,
+}: {
+  mask: number;
+  n: number;
+  reversed: boolean;
+}) {
+  const order = [...Array(n).keys()];
+  if (reversed) order.reverse();
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      {order.map((i) => {
+        const held = (mask & (1 << i)) !== 0;
+        return held ? (
+          <span
+            key={i}
+            className={`flex size-2 shrink-0 rounded-full bg-current ${seriesColor(i).text}`}
+          />
+        ) : (
+          <span
+            key={i}
+            className="size-2 shrink-0 rounded-full border border-gray-300 dark:border-gray-600"
+          />
+        );
+      })}
+    </span>
+  );
 }
 
 /**
@@ -133,7 +179,7 @@ function SparkPie({ ratio }: { ratio: number }) {
   return (
     <svg
       viewBox="0 0 20 20"
-      className="size-3 shrink-0 -rotate-90"
+      className="size-2.5 shrink-0 -rotate-90"
       aria-hidden="true"
     >
       <circle
@@ -177,11 +223,63 @@ function MatrixView({
   const [showUnheld, setShowUnheld] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [sortMode, setSortMode] = useState<SortMode>(n === 2 ? "diff" : "name");
+  const [reversed, setReversed] = useState(false);
   const [sortModeForN, setSortModeForN] = useState(n);
   if (sortModeForN !== n) {
     setSortModeForN(n);
     setSortMode(n === 2 ? "diff" : "name");
   }
+
+  // resizable columns: both th edges carry a drag handle. Role columns get
+  // a shared width sized to mean short-name length + 1.5σ so most names fit
+  // without spreading the checks too far apart.
+  const defaultRoleW = useMemo(() => {
+    const lens = roleIndexes.map((i) => {
+      const name = ds.roles[i].name;
+      const dot = name.indexOf(".");
+      return (dot === -1 ? shortRoleName(name) : name.slice(dot + 1)).length;
+    });
+    const mean = lens.reduce((a, b) => a + b, 0) / lens.length;
+    const sd = Math.sqrt(
+      lens.reduce((a, b) => a + (b - mean) ** 2, 0) / lens.length,
+    );
+    // ~6.6px/char at font-mono text-[11px], plus cell padding
+    return Math.round(
+      Math.min(176, Math.max(88, (mean + 1.5 * sd) * 6.6 + 16)),
+    );
+  }, [ds, roleIndexes]);
+  const [permW, setPermW] = useState(PERM_COL_DEFAULT_WIDTH);
+  const [roleW, setRoleW] = useState(defaultRoleW);
+  useEffect(() => setRoleW(defaultRoleW), [defaultRoleW]);
+  const colDrag = useRef<{ x: number; w: number; col: "perm" | "role" } | null>(
+    null,
+  );
+  const startColDrag =
+    (col: "perm" | "role", w: number) =>
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      colDrag.current = { x: e.clientX, w, col };
+    };
+  const moveColDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = colDrag.current;
+    if (!d) return;
+    const next = d.w + e.clientX - d.x;
+    if (d.col === "perm") setPermW(Math.min(640, Math.max(160, next)));
+    else setRoleW(Math.min(240, Math.max(64, next)));
+  };
+  const endColDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    colDrag.current = null;
+  };
+  const colResizerProps = (col: "perm" | "role", w: number) => ({
+    onPointerDown: startColDrag(col, w),
+    onPointerMove: moveColDrag,
+    onPointerUp: endColDrag,
+    className:
+      "absolute inset-y-0 -right-1 z-30 w-2 cursor-col-resize hover:bg-purple-300/50 dark:hover:bg-purple-700/50",
+  });
 
   const commonCount = useMemo(() => {
     let c = 0;
@@ -238,10 +336,13 @@ function MatrixView({
     });
   }, [ds, permIds, showUnheld, groupToPermIds, masks, parsed]);
 
-  // "差分順": group permIds by holder-mask. Section order: 共通 (when shown)
-  // first, then single-role sections and combination sections by popcount asc
-  // then mask asc (A のみ -> B のみ -> ... -> A·B -> ... -> B·C), and finally
-  // a synthetic "unheld by anyone" section (mask = -1) at the very end.
+  // "差分順": group permIds by holder-mask. Section order: single-role
+  // sections first, then combination sections by popcount asc then mask asc
+  // (A のみ -> B のみ -> ... -> A·B -> ... -> B·C), then 共通 (when shown) at
+  // the very end, and finally a synthetic "unheld by anyone" section
+  // (mask = -1) after that. When showUnheld is on, every non-empty subset of
+  // the roles is shown (even with 0 permIds) to complete the lattice; the
+  // whole order flips when `reversed` is set.
   const diffSections = useMemo<DiffSection[]>(() => {
     const byMask = new Map<number, number[]>();
     for (const id of permIds) {
@@ -253,7 +354,11 @@ function MatrixView({
     const singleMasks = roleIndexes.map((_, i) => 1 << i);
     const presentMasks = new Set(byMask.keys());
     for (const m of singleMasks) presentMasks.add(m);
+    if (showUnheld) {
+      for (let m = 1; m <= full; m++) presentMasks.add(m);
+    }
     if (showCommon) presentMasks.add(full);
+    else presentMasks.delete(full);
 
     const nonCommonMasks = [...presentMasks]
       .filter((m) => m !== full)
@@ -263,18 +368,19 @@ function MatrixView({
         return pa !== pb ? pa - pb : a - b;
       });
     const orderedMasks = showCommon
-      ? [full, ...nonCommonMasks]
+      ? [...nonCommonMasks, full]
       : nonCommonMasks;
+    if (reversed) orderedMasks.reverse();
 
     const isSingle = (mask: number) => popcount(mask) === 1;
     const sections: DiffSection[] = orderedMasks.map((mask) => {
-      const parts = labelPartsForMask(roleIndexes, ds, mask, t);
+      const parts = labelPartsForMask(roleIndexes, ds, mask, t, reversed);
       return {
         key: `sec:${mask}`,
         mask,
         parts,
         permIds: (byMask.get(mask) ?? []).sort((a, b) => a - b),
-        alwaysShow: mask === full || isSingle(mask),
+        alwaysShow: mask === full || isSingle(mask) || showUnheld,
       };
     });
     if (unheldPermIds.length > 0) {
@@ -287,7 +393,18 @@ function MatrixView({
       });
     }
     return sections;
-  }, [ds, roleIndexes, permIds, masks, unheldPermIds, showCommon, full, t]);
+  }, [
+    ds,
+    roleIndexes,
+    permIds,
+    masks,
+    unheldPermIds,
+    showCommon,
+    showUnheld,
+    reversed,
+    full,
+    t,
+  ]);
 
   const totalRows = useMemo(() => {
     if (sortMode === "name") {
@@ -325,7 +442,7 @@ function MatrixView({
           className="cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900"
           onClick={() => toggle(collapseKey)}
         >
-          <td className="sticky left-0 z-10 w-56 min-w-56 border-r border-gray-200 bg-gray-50/60 px-2 py-1 dark:border-gray-800 dark:bg-gray-900/40">
+          <td className="sticky left-0 z-10 border-r border-gray-200 bg-gray-50/60 px-2 py-1 dark:border-gray-800 dark:bg-gray-900/40">
             <span className="flex items-center gap-1.5 overflow-hidden">
               <span className="flex w-3 shrink-0 text-gray-400">
                 {opened ? (
@@ -359,11 +476,15 @@ function MatrixView({
                 key={roleIdx}
                 className="border-l border-gray-100 px-1 py-1 text-center tabular-nums dark:border-gray-800"
               >
-                <span
-                  className={`inline-flex items-center gap-1 text-xs ${cls}`}
-                >
-                  <SparkPie ratio={held / g.permIds.length} />
-                  {held}/{g.permIds.length}
+                <span className="inline-flex items-center gap-1 text-xs">
+                  {/* pie always in the role's color; the text stays dimmed
+                      for partial/empty so full rows pop */}
+                  <span className={`flex ${c.text}`}>
+                    <SparkPie ratio={held / g.permIds.length} />
+                  </span>
+                  <span className={`min-w-[5ch] text-right ${cls}`}>
+                    {held}/{g.permIds.length}
+                  </span>
                 </span>
               </td>
             );
@@ -377,9 +498,9 @@ function MatrixView({
             return (
               <tr
                 key={id}
-                className="border-b border-gray-50 hover:bg-amber-50 dark:border-gray-900 dark:hover:bg-amber-950/30"
+                className="border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30"
               >
-                <td className="sticky left-0 z-10 w-56 min-w-56 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                <td className="sticky left-0 z-10 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
                   <button
                     type="button"
                     onClick={() => state.anchorPerm(name)}
@@ -447,6 +568,20 @@ function MatrixView({
             {t("compare.sortName")}
           </button>
         </div>
+        {sortMode === "diff" && (
+          <button
+            type="button"
+            onClick={() => setReversed((v) => !v)}
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded border px-2 py-0.5 text-sm cursor-pointer ${
+              reversed
+                ? "border-gray-200 bg-gray-200 text-gray-900 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100"
+                : "border-gray-200 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:hover:text-gray-300"
+            }`}
+          >
+            <ArrowUpDown size={13} className="inline-block" />
+            {t("compare.reverseOrder")}
+          </button>
+        )}
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
           <input
             type="checkbox"
@@ -475,14 +610,18 @@ function MatrixView({
             spreading across the pane */}
         <table
           className="w-full table-fixed border-collapse text-sm"
-          style={{ minWidth: `calc(14rem + ${roleIndexes.length} * 5rem)` }}
+          style={{ minWidth: permW + roleIndexes.length * roleW }}
         >
           <thead>
             <tr className="sticky top-0 z-10 bg-white dark:bg-gray-950">
-              <th className="sticky left-0 z-20 w-56 min-w-56 border-r border-b border-gray-200 bg-white px-2 py-1.5 text-left align-bottom dark:border-gray-800 dark:bg-gray-950">
+              <th
+                className="sticky left-0 z-20 border-r border-b border-gray-200 bg-white px-2 py-1.5 text-left align-bottom dark:border-gray-800 dark:bg-gray-950"
+                style={{ width: permW }}
+              >
                 <span className="text-[10px] font-normal text-gray-400">
                   {t("compare.permissionColumn")}
                 </span>
+                <div {...colResizerProps("perm", permW)} />
               </th>
               {roleIndexes.map((roleIdx, i) => {
                 const role = ds.roles[roleIdx];
@@ -499,7 +638,8 @@ function MatrixView({
                 return (
                   <th
                     key={roleIdx}
-                    className="w-20 border-b border-l border-gray-100 border-b-gray-200 px-1 py-1.5 text-center align-bottom dark:border-gray-800 dark:border-b-gray-800"
+                    className="relative border-b border-l border-gray-100 border-b-gray-200 px-1 py-1.5 text-center align-bottom dark:border-gray-800 dark:border-b-gray-800"
+                    style={{ width: roleW }}
                     title={role.name}
                   >
                     <span
@@ -515,6 +655,7 @@ function MatrixView({
                     <span className="text-[10px] text-gray-400">
                       {role.permIds.length}
                     </span>
+                    <div {...colResizerProps("role", roleW)} />
                   </th>
                 );
               })}
@@ -558,6 +699,11 @@ function MatrixView({
                                   />
                                 )}
                               </span>
+                              <DotRow
+                                mask={s.mask < 0 ? 0 : s.mask}
+                                n={n}
+                                reversed={reversed}
+                              />
                               <span className="text-sm font-semibold">
                                 {s.parts.map((p, idx) => (
                                   // biome-ignore lint/suspicious/noArrayIndexKey: parts order is stable within a section
