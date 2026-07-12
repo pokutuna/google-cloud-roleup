@@ -17,13 +17,24 @@ const SIDEBAR_DEFAULT_WIDTH = 440;
 const SIDEBAR_MIN_WIDTH = 260;
 const SIDEBAR_MAX_WIDTH = 640;
 
+const SITE_URL = "https://pokutuna.github.io/google-cloud-roleup/";
+const SITE_TITLE = "Google Cloud RoleUp";
+
 export function meta(_: Route.MetaArgs) {
+  const description = getMessage(detectLang(), "app.metaDescription");
   return [
-    { title: "Google Cloud RoleUp" },
-    {
-      name: "description",
-      content: getMessage(detectLang(), "app.metaDescription"),
-    },
+    { title: SITE_TITLE },
+    { name: "description", content: description },
+    { tagName: "link", rel: "canonical", href: SITE_URL },
+    { property: "og:type", content: "website" },
+    { property: "og:url", content: SITE_URL },
+    { property: "og:title", content: SITE_TITLE },
+    { property: "og:description", content: description },
+    { property: "og:locale", content: "ja_JP" },
+    { property: "og:locale:alternate", content: "en_US" },
+    { name: "twitter:card", content: "summary" },
+    { name: "twitter:title", content: SITE_TITLE },
+    { name: "twitter:description", content: description },
   ];
 }
 
