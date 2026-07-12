@@ -1,10 +1,9 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
-import { badgesForPermission, badgesForPermissions } from "../lib/badges";
 import { type Dataset, permParts } from "../lib/data";
 import { useT } from "../lib/i18n";
-import { BadgeTag, StageTag } from "./primitives";
+import { StageTag } from "./primitives";
 
 /** Threshold above which the list defaults to collapsed-by-resource. */
 const AUTO_COLLAPSE_THRESHOLD = 200;
@@ -75,17 +74,13 @@ export function allResourceKeys(ds: Dataset, permIds: number[]): string[] {
 }
 
 function GroupRowView({
-  ds,
   row,
   onToggle,
 }: {
-  ds: Dataset;
   row: GroupRow;
   onToggle: () => void;
 }) {
   const t = useT();
-  const names = row.permIds.map((id) => ds.permissions[id]);
-  const badges = row.collapsed ? badgesForPermissions(names) : [];
   return (
     <button
       type="button"
@@ -108,13 +103,6 @@ function GroupRowView({
         {row.key}.*
       </span>
       <span className="text-gray-400">{row.permIds.length}</span>
-      {row.collapsed && badges.length > 0 && (
-        <span className="ml-auto flex gap-1">
-          {badges.map((b) => (
-            <BadgeTag key={b.id} badge={b} />
-          ))}
-        </span>
-      )}
     </button>
   );
 }
@@ -131,7 +119,6 @@ function FlatRowView({
   const meta = ds.permMeta[row.id];
   const parts = permParts(row.name);
   const hasResource = parts.resource.length > 0;
-  const badges = badgesForPermission(row.name);
 
   return (
     <button
@@ -149,13 +136,6 @@ function FlatRowView({
       </span>
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
         <StageTag stage={meta?.stage} />
-        {badges.length > 0 && (
-          <span className="flex shrink-0 gap-1">
-            {badges.map((b) => (
-              <BadgeTag key={b.id} badge={b} />
-            ))}
-          </span>
-        )}
         {meta?.title && (
           <span className="ml-auto max-w-56 truncate text-right text-xs text-gray-300 dark:text-gray-600">
             {meta.title}
@@ -244,7 +224,7 @@ export function PermGroupList({
         itemContent={(i) => {
           const row = rows[i];
           return row.type === "group" ? (
-            <GroupRowView ds={ds} row={row} onToggle={() => toggle(row.key)} />
+            <GroupRowView row={row} onToggle={() => toggle(row.key)} />
           ) : (
             <FlatRowView ds={ds} row={row} onSelectPerm={onSelectPerm} />
           );

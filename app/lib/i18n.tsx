@@ -137,8 +137,8 @@ const MESSAGES = {
     en: "Click to go / +Compare to show diff",
   },
   "detail.diffHint": {
-    ja: "+増える / −減る: このロールから乗り換えた場合のパーミッション数の増減",
-    en: "+gained / −lost: permission count change if switching from this role",
+    ja: "+増える / −減る: 関連ロールに切り替えた場合のパーミッション数の増減",
+    en: "+gained / −lost: permission count change when switching to a related role",
   },
   "detail.supersets": {
     ja: "このロールを完全に含むロール",
@@ -149,11 +149,13 @@ const MESSAGES = {
     en: "Roles fully contained in this role",
   },
   "detail.similar": { ja: "近いロール", en: "Similar roles" },
-  "detail.complements": {
-    ja: "重複しないロール (同サービス)",
-    en: "Non-overlapping roles (same service)",
+  "detail.sameService": {
+    ja: "同じサービスのロール",
+    en: "Same-service roles",
   },
   "detail.addCompare": { ja: "+比較", en: "+Compare" },
+  "detail.showMore": { ja: "もっと見る ({n})", en: "Show {n} more" },
+  "detail.showLess": { ja: "閉じる", en: "Show less" },
 
   // ComparePane
   "compare.title": { ja: "比較: {n} ロール", en: "Compare: {n} roles" },
@@ -171,7 +173,8 @@ const MESSAGES = {
   "compare.permissionColumn": { ja: "権限", en: "Permission" },
   "compare.common": { ja: "共通", en: "Common" },
   "compare.allShared": { ja: "共通 ", en: "Shared " },
-  "compare.reverseOrder": { ja: "逆順", en: "Reverse" },
+  "compare.sortAsc": { ja: "昇順", en: "Ascending" },
+  "compare.sortDesc": { ja: "降順", en: "Descending" },
   "compare.onlyIn": { ja: "{name} のみ", en: "{name} only" },
   "compare.unheld": { ja: "未保持", en: "Not held" },
   "compare.none": { ja: "該当なし (0 件)", en: "No entries" },
@@ -229,11 +232,15 @@ const MESSAGES = {
     ja: "パーミッションから逆引きする",
     en: "Reverse-lookup from a permission",
   },
-  "guide.exampleCompound": {
-    ja: "組み合わせ (AND) で絞り込む",
-    en: "Combine qualifiers (AND) to narrow down",
+  "guide.stageMeaning": { ja: "ステージ表示", en: "Stage markers" },
+  "guide.stageDeprecated": {
+    ja: "非推奨。将来削除される可能性がある",
+    en: "Deprecated; may be removed in the future",
   },
-  "guide.badgeMeaning": { ja: "バッジの意味", en: "Badge meanings" },
+  "guide.stageBeta": {
+    ja: "ベータ。仕様が変わる可能性がある",
+    en: "Beta; the definition may still change",
+  },
 
   // PermGroupList
   "permgroup.collapseAll": { ja: "すべて畳む", en: "Collapse all" },
@@ -254,9 +261,6 @@ const MESSAGES = {
     ja: "検索によるフィルタを解除",
     en: "Clear search filter",
   },
-  "primitives.matched": { ja: "該当: {names}", en: "Matched: {names}" },
-  "primitives.andMore": { ja: "ほか {n} 件", en: "and {n} more" },
-
   // home.tsx
   "home.showList": { ja: "リストを表示", en: "Show list" },
   "home.backToList": { ja: "一覧に戻る", en: "Back to list" },
@@ -264,28 +268,6 @@ const MESSAGES = {
   "home.tabDetail": { ja: "詳細", en: "Detail" },
   "home.tabCompare": { ja: "比較 ({n})", en: "Compare ({n})" },
   "home.tabReverse": { ja: "逆引き", en: "Lookup" },
-
-  // Badges
-  "badge.iam.label": { ja: "IAM変更", en: "IAM change" },
-  "badge.iam.hint": {
-    ja: "setIamPolicy を含む: このリソースのアクセス権設定を書き換えられる (権限昇格につながる)",
-    en: "Includes setIamPolicy: can rewrite this resource's access policy (can lead to privilege escalation)",
-  },
-  "badge.impersonate.label": { ja: "なりすまし", en: "Impersonation" },
-  "badge.impersonate.hint": {
-    ja: "サービスアカウントの権限を借用できる (actAs / アクセストークン取得 / 署名)",
-    en: "Can borrow a service account's privileges (actAs / obtain access tokens / signing)",
-  },
-  "badge.delete.label": { ja: "削除系", en: "Delete" },
-  "badge.delete.hint": {
-    ja: "delete / purge などリソースを削除する操作を含む",
-    en: "Includes operations that delete resources, such as delete / purge",
-  },
-  "badge.dataRead.label": { ja: "データ閲覧", en: "Data read" },
-  "badge.dataRead.hint": {
-    ja: "getData / read / export などデータの中身を読み取る操作を含む",
-    en: "Includes operations that read data contents, such as getData / read / export",
-  },
 
   // Lang switcher
   "lang.switch": { ja: "言語を切り替える", en: "Switch language" },

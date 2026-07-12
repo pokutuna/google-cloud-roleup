@@ -1,6 +1,11 @@
-import { ArrowUpDown, Check, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { badgesForPermissions } from "../lib/badges";
 import { type Dataset, permParts, shortRoleName } from "../lib/data";
 import { type Translate, useT } from "../lib/i18n";
 import {
@@ -12,7 +17,7 @@ import {
 } from "../lib/search";
 import type { ExplorerState } from "../lib/url-state";
 import { COMMON_SECTION, seriesColor } from "./colors";
-import { BadgeTag, MonoName, PermFilterNotice } from "./primitives";
+import { MonoName, PermFilterNotice, StageTag } from "./primitives";
 
 type SortMode = "diff" | "name";
 
@@ -513,6 +518,11 @@ function MatrixView({
                     <span className="font-medium text-gray-700 dark:text-gray-300">
                       {permParts(name).verb}
                     </span>
+                    {ds.permMeta[id]?.stage && (
+                      <span className="ml-1.5">
+                        <StageTag stage={ds.permMeta[id]?.stage} />
+                      </span>
+                    )}
                   </button>
                 </td>
                 {roleIndexes.map((roleIdx, i) => {
@@ -568,20 +578,19 @@ function MatrixView({
             {t("compare.sortName")}
           </button>
         </div>
-        {sortMode === "diff" && (
-          <button
-            type="button"
-            onClick={() => setReversed((v) => !v)}
-            className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded border px-2 py-0.5 text-sm cursor-pointer ${
-              reversed
-                ? "border-gray-200 bg-gray-200 text-gray-900 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100"
-                : "border-gray-200 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:hover:text-gray-300"
-            }`}
-          >
-            <ArrowUpDown size={13} className="inline-block" />
-            {t("compare.reverseOrder")}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setReversed((v) => !v)}
+          title={reversed ? t("compare.sortAsc") : t("compare.sortDesc")}
+          aria-label={reversed ? t("compare.sortAsc") : t("compare.sortDesc")}
+          className="flex shrink-0 items-center rounded border border-gray-200 p-1 text-gray-400 hover:text-gray-600 cursor-pointer dark:border-gray-700 dark:hover:text-gray-300"
+        >
+          {reversed ? (
+            <ArrowUp size={14} className="inline-block" />
+          ) : (
+            <ArrowDown size={14} className="inline-block" />
+          )}
+        </button>
         <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
           <input
             type="checkbox"
@@ -665,14 +674,13 @@ function MatrixView({
           </thead>
           <tbody>
             {sortMode === "name"
-              ? groups.map((g) => renderGroupRows(g, g.key))
+              ? (reversed ? [...groups].reverse() : groups).map((g) =>
+                  renderGroupRows(g, g.key),
+                )
               : diffSections
                   .filter((s) => s.alwaysShow || s.permIds.length > 0)
                   .map((s) => {
                     const sectionOpen = isSectionOpen(s.key);
-                    const badges = badgesForPermissions(
-                      s.permIds.map((id) => ds.permissions[id]),
-                    );
                     const sectionGroups = groupMatrixRows(ds, s.permIds);
                     const isEmpty = s.permIds.length === 0;
                     return (
@@ -714,11 +722,6 @@ function MatrixView({
                               </span>
                               <span className="text-xs text-gray-400">
                                 {s.permIds.length}
-                              </span>
-                              <span className="ml-auto flex gap-1">
-                                {badges.map((b) => (
-                                  <BadgeTag key={b.id} badge={b} />
-                                ))}
                               </span>
                             </span>
                           </td>

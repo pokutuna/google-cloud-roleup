@@ -16,11 +16,18 @@ export interface Role {
 }
 
 export interface Relation {
+  /** role indexes that fully contain this role, tightest first */
   supersets: number[];
+  /** role indexes fully contained by this role, largest first */
   subsets: number[];
-  /** [roleIndex, jaccardPct, sharedCount] */
+  /** [roleIndex, jaccardPct, sharedCount], jaccard desc */
   similar: [number, number, number][];
-  complements: number[];
+  /**
+   * Same-service roles (same role-name prefix) that are NOT already listed in
+   * supersets/subsets/similar, most overlap first. Each entry is
+   * [roleIndex, sharedCount] (sharedCount may be 0). Basic roles have none.
+   */
+  sameService: [number, number][];
 }
 
 export interface Service {

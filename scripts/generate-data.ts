@@ -79,10 +79,18 @@ interface RelationOut {
   supersets: number[];
   /** role indexes fully contained by this role, largest first */
   subsets: number[];
-  /** [roleIndex, jaccardPct, sharedCount], jaccard desc */
+  /**
+   * [roleIndex, jaccardPct, sharedCount], sorted by symmetric-difference
+   * distance ascending (closest first; ties broken by sharedCount desc).
+   * Only roles with distance <= SIMILAR_MAX_DISTANCE are included.
+   */
   similar: [number, number, number][];
-  /** same-service roles with zero overlap, largest first */
-  complements: number[];
+  /**
+   * Same-service roles (same role-name prefix) that are NOT already listed in
+   * supersets/subsets/similar, most overlap first. Each entry is
+   * [roleIndex, sharedCount] (sharedCount may be 0). Basic roles have none.
+   */
+  sameService: [number, number][];
 }
 
 function gcloud(args: string[]): string {
@@ -242,6 +250,8 @@ function intersectionCount(a: Uint32Array, b: Uint32Array): number {
 }
 
 const TOP_K = 10;
+/** Max symmetric-difference distance (perms gained + lost) for "similar". */
+const SIMILAR_MAX_DISTANCE = 100;
 
 function computeRelations(
   roles: RoleOut[],
@@ -266,8 +276,8 @@ function computeRelations(
   for (let i = 0; i < roles.length; i++) {
     const supersets: number[] = [];
     const subsets: number[] = [];
-    const similar: [number, number, number][] = [];
-    const complements: number[] = [];
+    // 4th element (distance) is used for sorting only; stripped before output.
+    const similar: [number, number, number, number][] = [];
     const service = roles[i].name.includes(".")
       ? roles[i].name.slice(6).split(".")[0]
       : null;
@@ -282,24 +292,47 @@ function computeRelations(
       } else if (isSub) {
         subsets.push(j);
       } else if (inter > 0) {
-        const jaccard = inter / (sizes[i] + sizes[j] - inter);
-        similar.push([j, Math.round(jaccard * 100), inter]);
-      } else if (
-        service !== null &&
-        roles[j].name.startsWith(`roles/${service}.`)
-      ) {
-        complements.push(j);
+        const distance = sizes[j] - inter + (sizes[i] - inter);
+        if (distance <= SIMILAR_MAX_DISTANCE) {
+          const jaccard = inter / (sizes[i] + sizes[j] - inter);
+          similar.push([j, Math.round(jaccard * 100), inter, distance]);
+        }
       }
     }
     supersets.sort((a, b) => sizes[a] - sizes[b]);
     subsets.sort((a, b) => sizes[b] - sizes[a]);
-    similar.sort((a, b) => b[1] - a[1] || b[2] - a[2]);
-    complements.sort((a, b) => sizes[b] - sizes[a]);
+    similar.sort((a, b) => a[3] - b[3] || b[2] - a[2]);
+
+    const toppedSupersets = supersets.slice(0, TOP_K);
+    const toppedSubsets = subsets.slice(0, TOP_K);
+    const toppedSimilar: [number, number, number][] = similar
+      .slice(0, TOP_K)
+      .map(([roleIndex, jaccardPct, sharedCount]) => [
+        roleIndex,
+        jaccardPct,
+        sharedCount,
+      ]);
+    const alreadyListed = new Set<number>([
+      ...toppedSupersets,
+      ...toppedSubsets,
+      ...toppedSimilar.map((s) => s[0]),
+    ]);
+
+    const sameService: [number, number][] = [];
+    if (service !== null) {
+      for (let j = 0; j < roles.length; j++) {
+        if (j === i || alreadyListed.has(j)) continue;
+        if (!roles[j].name.startsWith(`roles/${service}.`)) continue;
+        sameService.push([j, sharedAt(i, j)]);
+      }
+      sameService.sort((a, b) => b[1] - a[1] || sizes[b[0]] - sizes[a[0]]);
+    }
+
     relations[i] = {
-      supersets: supersets.slice(0, TOP_K),
-      subsets: subsets.slice(0, TOP_K),
-      similar: similar.slice(0, TOP_K),
-      complements: complements.slice(0, TOP_K),
+      supersets: toppedSupersets,
+      subsets: toppedSubsets,
+      similar: toppedSimilar,
+      sameService: sameService.slice(0, TOP_K),
     };
   }
   return relations;

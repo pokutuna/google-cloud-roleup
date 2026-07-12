@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { type Dataset, shortRoleName } from "../lib/data";
 import { useT } from "../lib/i18n";
 import {
@@ -71,7 +71,7 @@ function MissTeaser({
   );
 }
 
-/** ±n diff badge: "+n" green, "−n" red (U+2212), plain gray count for complements. */
+/** ±n diff badge: "+n" green, "−n" red (U+2212). */
 function DiffBadge({ plus, minus }: { plus?: number; minus?: number }) {
   if (plus === undefined && minus === undefined) return null;
   return (
@@ -92,14 +92,12 @@ function RelatedRoleRow({
   otherIndex,
   plus,
   minus,
-  plainCount,
 }: {
   ds: Dataset;
   state: ExplorerState;
   otherIndex: number;
   plus?: number;
   minus?: number;
-  plainCount?: number;
 }) {
   const t = useT();
   const other = ds.roles[otherIndex];
@@ -120,13 +118,7 @@ function RelatedRoleRow({
       </button>
       <span className="relative flex h-5 shrink-0 items-center">
         <span className="transition-opacity group-hover:opacity-0">
-          {plainCount !== undefined ? (
-            <span className="font-mono text-xs text-gray-400">
-              {plainCount}
-            </span>
-          ) : (
-            <DiffBadge plus={plus} minus={minus} />
-          )}
+          <DiffBadge plus={plus} minus={minus} />
         </span>
         <button
           type="button"
@@ -150,6 +142,52 @@ function RelatedRoleRow({
   );
 }
 
+const COLLAPSE_DEFAULT_LIMIT = 5;
+
+function CollapsibleSection<T>({
+  title,
+  items,
+  renderRow,
+  defaultLimit = COLLAPSE_DEFAULT_LIMIT,
+}: {
+  title: string;
+  items: T[];
+  renderRow: (item: T) => ReactNode;
+  defaultLimit?: number;
+}) {
+  const t = useT();
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? items : items.slice(0, defaultLimit);
+  const remaining = items.length - shown.length;
+
+  return (
+    <section>
+      <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+        {title}
+      </h3>
+      <ul>{shown.map(renderRow)}</ul>
+      {remaining > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="mt-1 text-xs text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
+        >
+          {t("detail.showMore", { n: remaining })}
+        </button>
+      )}
+      {remaining === 0 && expanded && items.length > defaultLimit && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="mt-1 text-xs text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
+        >
+          {t("detail.showLess")}
+        </button>
+      )}
+    </section>
+  );
+}
+
 function RelatedRoles({
   ds,
   state,
@@ -165,51 +203,15 @@ function RelatedRoles({
   const anchorSize = anchor.permIds.length;
 
   return (
-    <div className="flex flex-col gap-4 p-3">
+    <div key={roleIndex} className="flex flex-col gap-4 p-3">
       <p className="text-[10px] text-gray-400">{t("detail.diffHint")}</p>
-      {rel.supersets.length > 0 && (
+      {rel.sameService.length > 0 && (
         <section>
           <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
-            {t("detail.supersets")}
+            {t("detail.sameService")}
           </h3>
           <ul>
-            {rel.supersets.map((j) => (
-              <RelatedRoleRow
-                key={ds.roles[j].name}
-                ds={ds}
-                state={state}
-                otherIndex={j}
-                plus={ds.roles[j].permIds.length - anchorSize}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
-      {rel.subsets.length > 0 && (
-        <section>
-          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
-            {t("detail.subsets")}
-          </h3>
-          <ul>
-            {rel.subsets.map((j) => (
-              <RelatedRoleRow
-                key={ds.roles[j].name}
-                ds={ds}
-                state={state}
-                otherIndex={j}
-                minus={anchorSize - ds.roles[j].permIds.length}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
-      {rel.similar.length > 0 && (
-        <section>
-          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
-            {t("detail.similar")}
-          </h3>
-          <ul>
-            {rel.similar.map(([j, , shared]) => {
+            {rel.sameService.map(([j, shared]) => {
               const otherSize = ds.roles[j].permIds.length;
               return (
                 <RelatedRoleRow
@@ -225,23 +227,54 @@ function RelatedRoles({
           </ul>
         </section>
       )}
-      {rel.complements.length > 0 && (
-        <section>
-          <h3 className="mb-1.5 border-b border-gray-200 pb-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
-            {t("detail.complements")}
-          </h3>
-          <ul>
-            {rel.complements.map((j) => (
+      {rel.supersets.length > 0 && (
+        <CollapsibleSection
+          title={t("detail.supersets")}
+          items={rel.supersets}
+          renderRow={(j) => (
+            <RelatedRoleRow
+              key={ds.roles[j].name}
+              ds={ds}
+              state={state}
+              otherIndex={j}
+              plus={ds.roles[j].permIds.length - anchorSize}
+            />
+          )}
+        />
+      )}
+      {rel.subsets.length > 0 && (
+        <CollapsibleSection
+          title={t("detail.subsets")}
+          items={rel.subsets}
+          renderRow={(j) => (
+            <RelatedRoleRow
+              key={ds.roles[j].name}
+              ds={ds}
+              state={state}
+              otherIndex={j}
+              minus={anchorSize - ds.roles[j].permIds.length}
+            />
+          )}
+        />
+      )}
+      {rel.similar.length > 0 && (
+        <CollapsibleSection
+          title={t("detail.similar")}
+          items={rel.similar}
+          renderRow={([j, , shared]) => {
+            const otherSize = ds.roles[j].permIds.length;
+            return (
               <RelatedRoleRow
                 key={ds.roles[j].name}
                 ds={ds}
                 state={state}
                 otherIndex={j}
-                plainCount={ds.roles[j].permIds.length}
+                plus={otherSize - shared}
+                minus={anchorSize - shared}
               />
-            ))}
-          </ul>
-        </section>
+            );
+          }}
+        />
       )}
     </div>
   );

@@ -1,6 +1,5 @@
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { badgesForPermission } from "../lib/badges";
 import {
   type Dataset,
   isServiceAgent,
@@ -12,7 +11,7 @@ import { useT } from "../lib/i18n";
 import { rolesWithPermission } from "../lib/search";
 import type { ExplorerState } from "../lib/url-state";
 import { MAX_COMPARE_ROLES } from "./colors";
-import { BadgeTag, MonoName, StageTag } from "./primitives";
+import { MonoName, StageTag } from "./primitives";
 
 type SortKey = "count-asc" | "count-desc" | "name";
 
@@ -98,7 +97,6 @@ export function ReversePane({
   const name = ds.permissions[permId];
   const meta = ds.permMeta[permId];
   const parts = permParts(name);
-  const badges = badgesForPermission(name);
   const [sort, setSort] = useState<SortKey>("count-asc");
 
   const hasRoleSelected = state.selection.some((it) => it.type === "r");
@@ -137,9 +135,6 @@ export function ReversePane({
           <h2 className="font-mono text-lg font-bold text-rose-700 dark:text-rose-300">
             {name}
           </h2>
-          {badges.map((b) => (
-            <BadgeTag key={b.id} badge={b} />
-          ))}
           <StageTag stage={meta?.stage} />
           <button
             type="button"

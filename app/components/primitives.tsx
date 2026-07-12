@@ -1,7 +1,6 @@
 import { X } from "lucide-react";
-import type { Badge, BadgeWithMatches } from "../lib/badges";
 import { useT } from "../lib/i18n";
-import { BADGE_TONE, ENTITY } from "./colors";
+import { ENTITY } from "./colors";
 
 export function EntityChip({
   kind,
@@ -44,35 +43,6 @@ export function EntityChip({
           <X size={12} className="inline-block" />
         </button>
       )}
-    </span>
-  );
-}
-
-export function BadgeTag({ badge }: { badge: Badge | BadgeWithMatches }) {
-  const t = useT();
-  const matched = "matched" in badge ? badge.matched : undefined;
-  const overflowCount =
-    "overflowCount" in badge ? badge.overflowCount : undefined;
-  const hint = t(badge.hintKey);
-  const label = t(badge.labelKey);
-  const matchedNames =
-    matched && matched.length > 0
-      ? [
-          ...matched,
-          ...(overflowCount
-            ? [t("primitives.andMore", { n: overflowCount })]
-            : []),
-        ].join(", ")
-      : undefined;
-  const title = matchedNames
-    ? `${hint}\n${t("primitives.matched", { names: matchedNames })}`
-    : hint;
-  return (
-    <span
-      title={title}
-      className={`inline-block cursor-help rounded px-1 py-px text-[10px] font-medium whitespace-nowrap ${BADGE_TONE[badge.tone]}`}
-    >
-      {label}
     </span>
   );
 }

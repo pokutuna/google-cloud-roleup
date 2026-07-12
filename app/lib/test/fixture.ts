@@ -88,9 +88,39 @@ export const FIXTURE_JSON: RoleupJson = {
     },
   ],
   relations: {
-    1: { supersets: [3], subsets: [2], similar: [], complements: [] },
-    2: { supersets: [1, 3], subsets: [], similar: [], complements: [] },
-    3: { supersets: [], subsets: [1, 2], similar: [], complements: [] },
+    0: {
+      supersets: [],
+      subsets: [2, 4],
+      similar: [
+        [1, 33, 2],
+        [3, 25, 2],
+      ],
+      sameService: [],
+    },
+    1: {
+      supersets: [3],
+      subsets: [2],
+      similar: [[0, 33, 2]],
+      sameService: [],
+    },
+    2: {
+      supersets: [1, 0, 3],
+      subsets: [],
+      similar: [],
+      sameService: [],
+    },
+    3: {
+      supersets: [],
+      subsets: [1, 2],
+      similar: [[0, 25, 2]],
+      sameService: [],
+    },
+    4: {
+      supersets: [0],
+      subsets: [],
+      similar: [],
+      sameService: [],
+    },
   },
 };
 
