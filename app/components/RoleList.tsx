@@ -185,7 +185,8 @@ export function RoleList({
   roleIndexes: number[];
   /** total role count with no query filter (current display settings) */
   totalCount: number;
-  onCollapse: () => void;
+  /** collapse the list into the pane; omitted on mobile where tabs replace it */
+  onCollapse?: () => void;
 }) {
   const t = useT();
   // default: collapsed when the query is empty, expanded once narrowed down
@@ -349,15 +350,17 @@ export function RoleList({
           />
           {t("rolelist.showServiceAgents")}
         </label>
-        <button
-          type="button"
-          onClick={onCollapse}
-          title={t("rolelist.collapseList")}
-          aria-label={t("rolelist.collapseList")}
-          className="ml-2 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 cursor-pointer dark:hover:bg-gray-800 dark:hover:text-gray-300"
-        >
-          <PanelLeftClose size={14} />
-        </button>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            title={t("rolelist.collapseList")}
+            aria-label={t("rolelist.collapseList")}
+            className="ml-2 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 cursor-pointer dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          >
+            <PanelLeftClose size={14} />
+          </button>
+        )}
       </div>
       <Virtuoso
         className="flex-1"

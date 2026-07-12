@@ -140,7 +140,7 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
       state={paneState}
       roleIndexes={filtered}
       totalCount={totalRoleCount}
-      onCollapse={() => setExpanded(true)}
+      onCollapse={isMobile ? undefined : () => setExpanded(true)}
     />
   );
 

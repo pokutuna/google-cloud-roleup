@@ -43,9 +43,17 @@ export function GuidePane({ state }: { state: ExplorerState }) {
     <div className="mx-auto flex h-full max-w-lg flex-col justify-center gap-6 p-8 text-sm text-gray-600 dark:text-gray-300">
       <div>
         <div className="mb-6">
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-            Google Cloud RoleUp
-          </h2>
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+              Google Cloud RoleUp
+            </h2>
+            <span
+              title={t("header.unofficialTooltip")}
+              className="shrink-0 text-xs text-gray-400 dark:text-gray-500"
+            >
+              {t("header.unofficial")}
+            </span>
+          </div>
           <p className="mt-1 text-sm text-gray-500">{t("app.subtitle")}</p>
         </div>
         <ul className="mt-3 list-inside list-disc space-y-1.5">

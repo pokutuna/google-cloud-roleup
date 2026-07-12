@@ -205,12 +205,6 @@ export function HeaderBar({
         <h1 className="shrink-0 text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
           Google Cloud RoleUp
         </h1>
-        <span
-          title={t("header.unofficialTooltip")}
-          className="shrink-0 text-xs text-gray-400 dark:text-gray-500"
-        >
-          {t("header.unofficial")}
-        </span>
         <span className="hidden shrink-0 text-[10px] text-gray-400 md:ml-auto md:inline">
           {t("header.dataStats", {
             date: ds.generatedAt,
