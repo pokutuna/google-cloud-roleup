@@ -6,6 +6,7 @@ How `public/data/roleup.json` stays current without a manual `gcloud login` + `n
 
 ```
 cron (weekly) / workflow_dispatch
+  -> npm ci --ignore-scripts (before secrets are exposed)
   -> auth to GCP via Workload Identity Federation (no long-lived key)
   -> npm run generate-data          (scripts/generate-data.ts, anomaly check aborts on >10% drop)
   -> diff public/data/roleup.json   (skip the rest if nothing changed)

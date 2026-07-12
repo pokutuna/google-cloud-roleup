@@ -7,7 +7,8 @@ import { HeaderBar } from "../components/HeaderBar";
 import { ReversePane } from "../components/ReversePane";
 import { RoleList } from "../components/RoleList";
 import { isServiceAgent, loadDataset } from "../lib/data";
-import { detectLang, getMessage, useT } from "../lib/i18n";
+import { useT } from "../lib/i18n";
+import { detectLang, getMessage } from "../lib/i18n-data";
 import { filterRoles, parseQuery } from "../lib/search";
 import { useExplorerState } from "../lib/url-state";
 import { useIsMobile } from "../lib/use-media-query";
@@ -121,10 +122,12 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
   }, [ds, state.showServiceAgents]);
 
   // resolve selection to indexes; permission anchor wins for the right pane
-  const selRoleIdxs = state.selection
-    .filter((it) => it.type === "r")
-    .map((it) => ds.roleIndexByName.get(`roles/${it.name}`))
-    .filter((i): i is number => i !== undefined);
+  const selRoleIdxs = state.selection.reduce<number[]>((indexes, item) => {
+    if (item.type !== "r") return indexes;
+    const index = ds.roleIndexByName.get(`roles/${item.name}`);
+    if (index !== undefined) indexes.push(index);
+    return indexes;
+  }, []);
   const permAnchor = [...state.selection]
     .reverse()
     .find((it) => it.type === "p");

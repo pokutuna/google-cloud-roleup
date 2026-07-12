@@ -17,7 +17,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@react-router/node": "^8.2.0",
     "@react-router/serve": "^8.2.0",
     "cmdk": "^1.1.1",
     "isbot": "^5",

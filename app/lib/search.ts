@@ -30,15 +30,6 @@ export function parseQuery(q: string): ParsedQuery {
   return parsed;
 }
 
-export function isEmptyQuery(parsed: ParsedQuery): boolean {
-  return (
-    parsed.s.length === 0 &&
-    parsed.r.length === 0 &&
-    parsed.p.length === 0 &&
-    parsed.free.length === 0
-  );
-}
-
 /** Case-insensitive substring match on the full permission name. */
 export function permNameMatches(name: string, term: string): boolean {
   return name.toLowerCase().includes(term.toLowerCase());

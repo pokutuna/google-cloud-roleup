@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { orderServiceKeys } from "./RoleList";
+import { orderServiceKeys } from "./role-list-utils";
 
 const BASIC_KEY = "__basic__";
 

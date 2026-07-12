@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildFixtureDataset } from "../lib/test/fixture";
-import { allResourceKeys, buildRows } from "./PermGroupList";
+import { allResourceKeys, buildRows } from "./perm-group-list-utils";
 
 const ds = buildFixtureDataset();
 // all permission ids in name-sorted (id) order, as the real caller supplies

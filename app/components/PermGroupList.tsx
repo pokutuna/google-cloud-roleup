@@ -3,75 +3,18 @@ import { useRef, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { type Dataset, permParts } from "../lib/data";
 import { useT } from "../lib/i18n";
+import {
+  allResourceKeys,
+  buildRows,
+  type FlatRow,
+  type GroupRow,
+} from "./perm-group-list-utils";
 import { StageTag } from "./primitives";
 
 /** Threshold above which the list defaults to collapsed-by-resource. */
 const AUTO_COLLAPSE_THRESHOLD = 200;
 /** Below this size the "collapse all / expand all" row isn't worth showing. */
 const BULK_TOGGLE_MIN = 10;
-
-interface FlatRow {
-  type: "flat";
-  id: number;
-  name: string;
-}
-
-interface GroupRow {
-  type: "group";
-  /** collapse key: "service" or "service.resource" */
-  key: string;
-  permIds: number[];
-  /** whether this group is currently collapsed */
-  collapsed: boolean;
-}
-
-type Row = FlatRow | GroupRow;
-
-/**
- * Walk permIds (assumed name-sorted, i.e. id order) and produce the rows to
- * render: every contiguous run sharing a resource group (service.resource,
- * or service when there's no resource) is preceded by a group placeholder
- * row. When the group is collapsed, only the placeholder row is emitted;
- * otherwise the placeholder is followed by the run's flat rows.
- */
-export function buildRows(
-  ds: Dataset,
-  permIds: number[],
-  collapsed: Set<string>,
-): Row[] {
-  const rows: Row[] = [];
-  let i = 0;
-  while (i < permIds.length) {
-    const parts = permParts(ds.permissions[permIds[i]]);
-    const key = parts.group || parts.service;
-    const run: number[] = [];
-    while (i < permIds.length) {
-      const p = permParts(ds.permissions[permIds[i]]);
-      const rk = p.group || p.service;
-      if (rk !== key) break;
-      run.push(permIds[i]);
-      i++;
-    }
-    const isCollapsed = collapsed.has(key);
-    rows.push({ type: "group", key, permIds: run, collapsed: isCollapsed });
-    if (!isCollapsed) {
-      for (const id of run) {
-        rows.push({ type: "flat", id, name: ds.permissions[id] });
-      }
-    }
-  }
-  return rows;
-}
-
-/** Every distinct "service.resource" key across permIds (used by "collapse all"). */
-export function allResourceKeys(ds: Dataset, permIds: number[]): string[] {
-  const keys = new Set<string>();
-  for (const id of permIds) {
-    const parts = permParts(ds.permissions[id]);
-    keys.add(parts.group || parts.service);
-  }
-  return [...keys];
-}
 
 function GroupRowView({
   row,

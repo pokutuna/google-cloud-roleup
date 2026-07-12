@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getMessage } from "./i18n";
+import { getMessage } from "./i18n-data";
 
 describe("getMessage", () => {
   it("returns the ja message for lang ja", () => {

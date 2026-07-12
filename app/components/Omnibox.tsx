@@ -27,7 +27,7 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
   // state.setQ routes through a router navigation (startTransition), which
   // would otherwise lag the controlled value. External q changes (example
   // clicks, filter-notice clear, back button) sync back into the input.
-  const [text, setText] = useState(state.q);
+  const [text, setText] = useState(() => state.q);
   const lastQ = useRef(state.q);
   if (lastQ.current !== state.q) {
     lastQ.current = state.q;
@@ -80,6 +80,18 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
     focused &&
     sugg !== null &&
     sugg.services.length + sugg.roleIndexes.length + sugg.permIds.length > 0;
+  const serviceHeading = useMemo(
+    () => <span className={GROUP_HEADING}>{t("omnibox.groupService")}</span>,
+    [t],
+  );
+  const roleHeading = useMemo(
+    () => <span className={GROUP_HEADING}>{t("omnibox.groupRole")}</span>,
+    [t],
+  );
+  const permissionHeading = useMemo(
+    () => <span className={GROUP_HEADING}>{t("omnibox.groupPermission")}</span>,
+    [t],
+  );
 
   return (
     <Command
@@ -102,11 +114,7 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
         className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
       >
         {sugg && sugg.services.length > 0 && (
-          <Command.Group
-            heading={
-              <span className={GROUP_HEADING}>{t("omnibox.groupService")}</span>
-            }
-          >
+          <Command.Group heading={serviceHeading}>
             {sugg.services.map((prefix) => (
               <Command.Item
                 key={`s:${prefix}`}
@@ -129,11 +137,7 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
           </Command.Group>
         )}
         {sugg && sugg.roleIndexes.length > 0 && (
-          <Command.Group
-            heading={
-              <span className={GROUP_HEADING}>{t("omnibox.groupRole")}</span>
-            }
-          >
+          <Command.Group heading={roleHeading}>
             {sugg.roleIndexes.map((idx) => {
               const role = ds.roles[idx];
               const short = shortRoleName(role.name);
@@ -157,13 +161,7 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
           </Command.Group>
         )}
         {sugg && sugg.permIds.length > 0 && (
-          <Command.Group
-            heading={
-              <span className={GROUP_HEADING}>
-                {t("omnibox.groupPermission")}
-              </span>
-            }
-          >
+          <Command.Group heading={permissionHeading}>
             {sugg.permIds.map((id) => (
               <Command.Item
                 key={`p:${ds.permissions[id]}`}

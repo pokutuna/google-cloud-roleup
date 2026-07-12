@@ -11,7 +11,7 @@ function getInitialMatch(query: string): boolean {
  * read the real viewport, so we start from a safe default and sync in an
  * effect to keep the first client render consistent.
  */
-export function useMediaQuery(query: string): boolean {
+function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => getInitialMatch(query));
 
   useEffect(() => {

@@ -120,9 +120,3 @@ export const COMMON_SECTION = {
   border: "border-gray-400 dark:border-gray-600",
   bg: "bg-gray-400 dark:bg-gray-500",
 } as const;
-
-export const BADGE_TONE = {
-  danger: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
-  warn: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300",
-  info: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
-} as const;

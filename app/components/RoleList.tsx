@@ -19,6 +19,7 @@ import { usePinnedRoles, usePinnedServices } from "../lib/pinned";
 import type { ExplorerState } from "../lib/url-state";
 import { MAX_COMPARE_ROLES, seriesColor } from "./colors";
 import { MonoName, StageTag } from "./primitives";
+import { orderServiceKeys } from "./role-list-utils";
 
 const BASIC_KEY = "__basic__";
 const PINNED_KEY = "__pinned__";
@@ -27,36 +28,6 @@ const OTHER_KEY = "__other__";
 type Item =
   | { type: "header"; key: string; prefix: string | null; count: number }
   | { type: "role"; roleIndex: number; pinned?: boolean };
-
-/**
- * Order service group keys: basic roles first, then services directly
- * pinned (alphabetical), then services that only contain pinned roles
- * (alphabetical), then the remaining services (alphabetical). A service
- * that is both directly pinned and contains pinned roles counts as
- * directly pinned. Only keys present in `keys` are included (groups with
- * 0 matching roles are already absent from the input).
- */
-export function orderServiceKeys(
-  keys: string[],
-  pinnedServices: string[],
-  servicesWithPinnedRoles: Set<string>,
-): string[] {
-  const pinnedSet = new Set(pinnedServices);
-  const basic = keys.filter((k) => k === BASIC_KEY);
-  const pinned = keys.filter((k) => k !== BASIC_KEY && pinnedSet.has(k));
-  const containsPinnedRoles = keys.filter(
-    (k) =>
-      k !== BASIC_KEY && !pinnedSet.has(k) && servicesWithPinnedRoles.has(k),
-  );
-  const rest = keys.filter(
-    (k) =>
-      k !== BASIC_KEY && !pinnedSet.has(k) && !servicesWithPinnedRoles.has(k),
-  );
-  pinned.sort((a, b) => a.localeCompare(b));
-  containsPinnedRoles.sort((a, b) => a.localeCompare(b));
-  rest.sort((a, b) => a.localeCompare(b));
-  return [...basic, ...pinned, ...containsPinnedRoles, ...rest];
-}
 
 /**
  * Sort a group's role indexes so pinned roles float to the top; both the
@@ -122,6 +93,13 @@ function RoleRow({
           checked={selected}
           disabled={disabled}
           onChange={() => state.toggle({ type: "r", name: short })}
+          aria-label={
+            disabled
+              ? t("rolelist.maxCompare", { n: MAX_COMPARE_ROLES })
+              : selected
+                ? t("rolelist.removeFromCompare", { name: short })
+                : t("rolelist.addToCompare", { name: short })
+          }
           title={
             disabled
               ? t("rolelist.maxCompare", { n: MAX_COMPARE_ROLES })
@@ -362,145 +340,185 @@ export function RoleList({
           </button>
         )}
       </div>
-      <Virtuoso
-        className="flex-1"
-        totalCount={items.length}
-        itemContent={(i) => {
-          const item = items[i];
-          if (item.type === "header") {
-            if (item.key === PINNED_KEY) {
-              return (
-                <div className="flex items-center gap-1.5 border-b border-purple-200 border-l-2 border-l-purple-500 bg-purple-50 px-2 py-1 text-xs dark:border-purple-900 dark:border-l-purple-500 dark:bg-purple-950/40">
-                  <span className="flex w-4" aria-hidden />
-                  <span className="font-semibold text-purple-700 dark:text-purple-300">
-                    {t("rolelist.selected")}
-                  </span>
-                  <span className="ml-auto text-purple-500 dark:text-purple-400">
-                    {item.count}
-                  </span>
-                </div>
-              );
-            }
-            const label =
-              item.key === BASIC_KEY
-                ? t("rolelist.basicRoles")
-                : item.key === OTHER_KEY
-                  ? t("rolelist.other")
-                  : serviceDisplayName(ds, item.key);
-            const opened = isOpen(item.key);
-            const isPinned =
-              item.prefix !== null && pinnedServices.includes(item.prefix);
-            const isPinnedByRolesOnly =
-              !isPinned &&
-              item.prefix !== null &&
-              servicesWithPinnedRoles.has(item.prefix);
+      <RoleListItems
+        ds={ds}
+        state={state}
+        items={items}
+        pinnedServices={pinnedServices}
+        servicesWithPinnedRoles={servicesWithPinnedRoles}
+        selectedRoles={selectedRoles}
+        pinnedRoleSet={pinnedRoleSet}
+        isOpen={isOpen}
+        toggleOpen={toggleOpen}
+        togglePinned={togglePinned}
+        togglePinnedRole={togglePinnedRole}
+      />
+    </div>
+  );
+}
+
+function RoleListItems({
+  ds,
+  state,
+  items,
+  pinnedServices,
+  servicesWithPinnedRoles,
+  selectedRoles,
+  pinnedRoleSet,
+  isOpen,
+  toggleOpen,
+  togglePinned,
+  togglePinnedRole,
+}: {
+  ds: Dataset;
+  state: ExplorerState;
+  items: Item[];
+  pinnedServices: string[];
+  servicesWithPinnedRoles: Set<string>;
+  selectedRoles: ExplorerState["selection"];
+  pinnedRoleSet: Set<string>;
+  isOpen: (key: string) => boolean;
+  toggleOpen: (key: string) => void;
+  togglePinned: (key: string) => void;
+  togglePinnedRole: (key: string) => void;
+}) {
+  const t = useT();
+  const selectedRoleItems = selectedRoles.filter((item) => item.type === "r");
+  return (
+    <Virtuoso
+      className="flex-1"
+      totalCount={items.length}
+      itemContent={(i) => {
+        const item = items[i];
+        if (item.type === "header") {
+          if (item.key === PINNED_KEY) {
             return (
-              <div className="group flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-2 py-1 text-xs dark:border-gray-800 dark:bg-gray-900">
-                <button
-                  type="button"
-                  onClick={() => toggleOpen(item.key)}
-                  aria-label={t("rolelist.toggleGroup", {
-                    label,
-                    action: opened
-                      ? t("rolelist.collapse")
-                      : t("rolelist.expand"),
-                  })}
-                  className="flex flex-1 items-center gap-1.5 text-left cursor-pointer"
-                >
-                  <span aria-hidden className="flex w-4 text-gray-400">
-                    {opened ? (
-                      <ChevronDown size={14} className="inline-block" />
-                    ) : (
-                      <ChevronRight size={14} className="inline-block" />
-                    )}
-                  </span>
-                  <span className="font-semibold text-gray-600 dark:text-gray-300">
-                    {label}
-                  </span>
-                  {item.prefix && (
-                    <span className="font-mono text-gray-400">
-                      {item.prefix}
-                    </span>
-                  )}
-                  <span className="ml-auto text-gray-400">{item.count}</span>
-                </button>
-                {item.prefix && (
-                  <button
-                    type="button"
-                    title={
-                      isPinned
-                        ? t("rolelist.unpin")
-                        : isPinnedByRolesOnly
-                          ? t("rolelist.containsPinnedRoles")
-                          : t("rolelist.pin")
-                    }
-                    aria-label={
-                      isPinned
-                        ? t("rolelist.unpin")
-                        : isPinnedByRolesOnly
-                          ? t("rolelist.containsPinnedRoles")
-                          : t("rolelist.pin")
-                    }
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // biome-ignore lint/style/noNonNullAssertion: guarded by item.prefix above
-                      togglePinned(item.prefix!);
-                    }}
-                    className={`rounded px-1 cursor-pointer ${
-                      isPinned
-                        ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                        : isPinnedByRolesOnly
-                          ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                          : "text-gray-400 opacity-0 hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                    }`}
-                  >
-                    {/* filled = the service itself is pinned, stroke = it only contains pinned roles */}
-                    <Pin
-                      size={12}
-                      fill={isPinned ? "currentColor" : "none"}
-                      className="inline-block"
-                    />
-                  </button>
-                )}
-                {item.prefix && (
-                  <button
-                    type="button"
-                    title={t("rolelist.filterByService", {
-                      prefix: item.prefix,
-                    })}
-                    aria-label={t("rolelist.filterByService", {
-                      prefix: item.prefix,
-                    })}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      state.setQ(`s:${item.prefix} `);
-                    }}
-                    className="rounded px-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 cursor-pointer dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                  >
-                    <ListFilter size={12} className="inline-block" />
-                  </button>
-                )}
+              <div className="flex items-center gap-1.5 border-b border-purple-200 border-l-2 border-l-purple-500 bg-purple-50 px-2 py-1 text-xs dark:border-purple-900 dark:border-l-purple-500 dark:bg-purple-950/40">
+                <span className="flex w-4" aria-hidden />
+                <span className="font-semibold text-purple-700 dark:text-purple-300">
+                  {t("rolelist.selected")}
+                </span>
+                <span className="ml-auto text-purple-500 dark:text-purple-400">
+                  {item.count}
+                </span>
               </div>
             );
           }
-          const short = shortRoleName(ds.roles[item.roleIndex].name);
-          const selPos = selectedRoles.findIndex((it) => it.name === short);
-          const selected = selPos >= 0;
+          const label =
+            item.key === BASIC_KEY
+              ? t("rolelist.basicRoles")
+              : item.key === OTHER_KEY
+                ? t("rolelist.other")
+                : serviceDisplayName(ds, item.key);
+          const opened = isOpen(item.key);
+          const isPinned =
+            item.prefix !== null && pinnedServices.includes(item.prefix);
+          const isPinnedByRolesOnly =
+            !isPinned &&
+            item.prefix !== null &&
+            servicesWithPinnedRoles.has(item.prefix);
           return (
-            <RoleRow
-              ds={ds}
-              state={state}
-              roleIndex={item.roleIndex}
-              selected={selected}
-              selPos={selPos}
-              inSelectionTray={item.pinned}
-              rolePinned={pinnedRoleSet.has(short)}
-              onTogglePinRole={togglePinnedRole}
-              atCap={selectedRoles.length >= MAX_COMPARE_ROLES}
-            />
+            <div className="group flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-2 py-1 text-xs dark:border-gray-800 dark:bg-gray-900">
+              <button
+                type="button"
+                onClick={() => toggleOpen(item.key)}
+                aria-label={t("rolelist.toggleGroup", {
+                  label,
+                  action: opened
+                    ? t("rolelist.collapse")
+                    : t("rolelist.expand"),
+                })}
+                className="flex flex-1 items-center gap-1.5 text-left cursor-pointer"
+              >
+                <span aria-hidden className="flex w-4 text-gray-400">
+                  {opened ? (
+                    <ChevronDown size={14} className="inline-block" />
+                  ) : (
+                    <ChevronRight size={14} className="inline-block" />
+                  )}
+                </span>
+                <span className="font-semibold text-gray-600 dark:text-gray-300">
+                  {label}
+                </span>
+                {item.prefix && (
+                  <span className="font-mono text-gray-400">{item.prefix}</span>
+                )}
+                <span className="ml-auto text-gray-400">{item.count}</span>
+              </button>
+              {item.prefix && (
+                <button
+                  type="button"
+                  title={
+                    isPinned
+                      ? t("rolelist.unpin")
+                      : isPinnedByRolesOnly
+                        ? t("rolelist.containsPinnedRoles")
+                        : t("rolelist.pin")
+                  }
+                  aria-label={
+                    isPinned
+                      ? t("rolelist.unpin")
+                      : isPinnedByRolesOnly
+                        ? t("rolelist.containsPinnedRoles")
+                        : t("rolelist.pin")
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // biome-ignore lint/style/noNonNullAssertion: guarded by item.prefix above
+                    togglePinned(item.prefix!);
+                  }}
+                  className={`rounded px-1 cursor-pointer ${
+                    isPinned || isPinnedByRolesOnly
+                      ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                      : "text-gray-400 opacity-0 hover:bg-gray-200 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                  }`}
+                >
+                  <Pin
+                    size={12}
+                    fill={isPinned ? "currentColor" : "none"}
+                    className="inline-block"
+                  />
+                </button>
+              )}
+              {item.prefix && (
+                <button
+                  type="button"
+                  title={t("rolelist.filterByService", {
+                    prefix: item.prefix,
+                  })}
+                  aria-label={t("rolelist.filterByService", {
+                    prefix: item.prefix,
+                  })}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    state.setQ(`s:${item.prefix} `);
+                  }}
+                  className="rounded px-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 cursor-pointer dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                >
+                  <ListFilter size={12} className="inline-block" />
+                </button>
+              )}
+            </div>
           );
-        }}
-      />
-    </div>
+        }
+        const short = shortRoleName(ds.roles[item.roleIndex].name);
+        const selPos = selectedRoleItems.findIndex(
+          (item) => item.name === short,
+        );
+        return (
+          <RoleRow
+            ds={ds}
+            state={state}
+            roleIndex={item.roleIndex}
+            selected={selPos >= 0}
+            selPos={selPos}
+            inSelectionTray={item.pinned}
+            rolePinned={pinnedRoleSet.has(short)}
+            onTogglePinRole={togglePinnedRole}
+            atCap={selectedRoleItems.length >= MAX_COMPARE_ROLES}
+          />
+        );
+      }}
+    />
   );
 }

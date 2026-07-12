@@ -5,9 +5,17 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 import { type Dataset, permParts, shortRoleName } from "../lib/data";
-import { type Translate, useT } from "../lib/i18n";
+import { useT } from "../lib/i18n";
+import type { Translate } from "../lib/i18n-data";
 import {
   filterPermIds,
   hasPermFilter,
@@ -82,6 +90,7 @@ function groupToPermIdsMap(ds: Dataset): Map<string, number[]> {
 
 /** A single colored fragment of a section header label. */
 interface LabelPart {
+  key: string;
   text: string;
   className: string;
 }
@@ -98,6 +107,7 @@ interface DiffSection {
 }
 
 const INTERSECTION_SEP = {
+  key: "separator",
   text: " ∩ ",
   className: "px-1 text-gray-400 dark:text-gray-600",
 };
@@ -111,24 +121,39 @@ function labelPartsForMask(
 ): LabelPart[] {
   const n = roleIndexes.length;
   const full = (1 << n) - 1;
-  let names = roleIndexes
-    .map((roleIdx, i) => ({ i, name: ds.roles[roleIdx].name }))
-    .filter(({ i }) => mask & (1 << i));
-  if (reversed) names = [...names].reverse();
+  const names = roleIndexes.reduce<{ i: number; name: string }[]>(
+    (result, roleIdx, i) => {
+      if (mask & (1 << i)) result.push({ i, name: ds.roles[roleIdx].name });
+      return result;
+    },
+    [],
+  );
+  if (reversed) names.reverse();
 
   if (mask === full) {
     const parts: LabelPart[] = [
-      { text: t("compare.allShared"), className: COMMON_SECTION.text },
+      {
+        key: "shared",
+        text: t("compare.allShared"),
+        className: COMMON_SECTION.text,
+      },
     ];
     names.forEach(({ name }, idx) => {
-      if (idx > 0) parts.push(INTERSECTION_SEP);
-      parts.push({ text: name, className: COMMON_SECTION.text });
+      if (idx > 0) {
+        parts.push({ ...INTERSECTION_SEP, key: `separator:${idx}` });
+      }
+      parts.push({
+        key: `role:${name}`,
+        text: name,
+        className: COMMON_SECTION.text,
+      });
     });
     return parts;
   }
   if (names.length === 1) {
     return [
       {
+        key: `only:${names[0].i}`,
         text: t("compare.onlyIn", { name: names[0].name }),
         className: seriesColor(names[0].i).text,
       },
@@ -136,8 +161,14 @@ function labelPartsForMask(
   }
   const parts: LabelPart[] = [];
   names.forEach(({ i, name }, idx) => {
-    if (idx > 0) parts.push(INTERSECTION_SEP);
-    parts.push({ text: name, className: seriesColor(i).text });
+    if (idx > 0) {
+      parts.push({ ...INTERSECTION_SEP, key: `separator:${idx}` });
+    }
+    parts.push({
+      key: `role:${i}`,
+      text: name,
+      className: seriesColor(i).text,
+    });
   });
   return parts;
 }
@@ -209,6 +240,65 @@ function SparkPie({ ratio }: { ratio: number }) {
   );
 }
 
+interface MatrixState {
+  showCommon: boolean;
+  showUnheld: boolean;
+  collapsed: Set<string>;
+  sortMode: SortMode;
+  reversed: boolean;
+  permW: number;
+  roleW: number;
+}
+
+type MatrixAction =
+  | { type: "setShowCommon"; value: boolean }
+  | { type: "setShowUnheld"; value: boolean }
+  | { type: "toggleCollapsed"; key: string }
+  | { type: "setSortMode"; value: SortMode }
+  | { type: "toggleReversed" }
+  | { type: "setColumnWidth"; column: "perm" | "role"; value: number }
+  | { type: "resetForRoleCount"; sortMode: SortMode }
+  | { type: "resetRoleWidth"; value: number };
+
+function createMatrixState(n: number, roleW: number): MatrixState {
+  return {
+    showCommon: true,
+    showUnheld: false,
+    collapsed: new Set(),
+    sortMode: n === 2 ? "diff" : "name",
+    reversed: false,
+    permW: PERM_COL_DEFAULT_WIDTH,
+    roleW,
+  };
+}
+
+function matrixReducer(state: MatrixState, action: MatrixAction): MatrixState {
+  switch (action.type) {
+    case "setShowCommon":
+      return { ...state, showCommon: action.value };
+    case "setShowUnheld":
+      return { ...state, showUnheld: action.value };
+    case "toggleCollapsed": {
+      const collapsed = new Set(state.collapsed);
+      if (collapsed.has(action.key)) collapsed.delete(action.key);
+      else collapsed.add(action.key);
+      return { ...state, collapsed };
+    }
+    case "setSortMode":
+      return { ...state, sortMode: action.value };
+    case "toggleReversed":
+      return { ...state, reversed: !state.reversed };
+    case "setColumnWidth":
+      return action.column === "perm"
+        ? { ...state, permW: action.value }
+        : { ...state, roleW: action.value };
+    case "resetForRoleCount":
+      return { ...state, sortMode: action.sortMode };
+    case "resetRoleWidth":
+      return { ...state, roleW: action.value };
+  }
+}
+
 function MatrixView({
   ds,
   state,
@@ -224,16 +314,6 @@ function MatrixView({
   const n = roleIndexes.length;
   const masks = useMemo(() => computeMasks(ds, roleIndexes), [ds, roleIndexes]);
   const full = (1 << n) - 1;
-  const [showCommon, setShowCommon] = useState(true);
-  const [showUnheld, setShowUnheld] = useState(false);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [sortMode, setSortMode] = useState<SortMode>(n === 2 ? "diff" : "name");
-  const [reversed, setReversed] = useState(false);
-  const [sortModeForN, setSortModeForN] = useState(n);
-  if (sortModeForN !== n) {
-    setSortModeForN(n);
-    setSortMode(n === 2 ? "diff" : "name");
-  }
 
   // resizable columns: both th edges carry a drag handle. Role columns get
   // a shared width sized to mean short-name length + 1.5σ so most names fit
@@ -253,9 +333,31 @@ function MatrixView({
       Math.min(176, Math.max(88, (mean + 1.5 * sd) * 6.6 + 16)),
     );
   }, [ds, roleIndexes]);
-  const [permW, setPermW] = useState(PERM_COL_DEFAULT_WIDTH);
-  const [roleW, setRoleW] = useState(defaultRoleW);
-  useEffect(() => setRoleW(defaultRoleW), [defaultRoleW]);
+
+  const [matrix, dispatch] = useReducer(
+    matrixReducer,
+    { n, roleW: defaultRoleW },
+    ({ n: initialN, roleW: initialRoleW }) =>
+      createMatrixState(initialN, initialRoleW),
+  );
+  useEffect(() => {
+    dispatch({
+      type: "resetForRoleCount",
+      sortMode: n === 2 ? "diff" : "name",
+    });
+  }, [n]);
+  useEffect(() => {
+    dispatch({ type: "resetRoleWidth", value: defaultRoleW });
+  }, [defaultRoleW]);
+  const {
+    showCommon,
+    showUnheld,
+    collapsed,
+    sortMode,
+    reversed,
+    permW,
+    roleW,
+  } = matrix;
   const colDrag = useRef<{ x: number; w: number; col: "perm" | "role" } | null>(
     null,
   );
@@ -271,8 +373,19 @@ function MatrixView({
     const d = colDrag.current;
     if (!d) return;
     const next = d.w + e.clientX - d.x;
-    if (d.col === "perm") setPermW(Math.min(640, Math.max(160, next)));
-    else setRoleW(Math.min(240, Math.max(64, next)));
+    if (d.col === "perm") {
+      dispatch({
+        type: "setColumnWidth",
+        column: "perm",
+        value: Math.min(640, Math.max(160, next)),
+      });
+    } else {
+      dispatch({
+        type: "setColumnWidth",
+        column: "role",
+        value: Math.min(240, Math.max(64, next)),
+      });
+    }
   };
   const endColDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
@@ -392,7 +505,13 @@ function MatrixView({
       sections.push({
         key: "sec:-1",
         mask: -1,
-        parts: [{ text: t("compare.unheld"), className: "text-gray-400" }],
+        parts: [
+          {
+            key: "unheld",
+            text: t("compare.unheld"),
+            className: "text-gray-400",
+          },
+        ],
         permIds: [...unheldPermIds].sort((a, b) => a - b),
         alwaysShow: false,
       });
@@ -431,321 +550,503 @@ function MatrixView({
   const isOpen = (key: string) =>
     collapsed.has(key) ? !defaultOpen : defaultOpen;
   const isSectionOpen = (key: string) => !collapsed.has(key);
-  const toggle = (key: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-  const renderGroupRows = (g: MatrixGroup, collapseKey: string) => {
-    const opened = isOpen(collapseKey);
-    return (
-      <Fragment key={collapseKey}>
-        <tr
-          className="cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900"
-          onClick={() => toggle(collapseKey)}
-        >
-          <td className="sticky left-0 z-10 border-r border-gray-200 bg-gray-50/60 px-2 py-1 dark:border-gray-800 dark:bg-gray-900/40">
-            <span className="flex items-center gap-1.5 overflow-hidden">
-              <span className="flex w-3 shrink-0 text-gray-400">
-                {opened ? (
-                  <ChevronDown size={13} className="inline-block" />
-                ) : (
-                  <ChevronRight size={13} className="inline-block" />
-                )}
-              </span>
-              <span className="truncate font-mono font-medium text-gray-700 dark:text-gray-300">
-                <MonoName name={g.key} />
-                <span className="text-gray-400">.*</span>
-              </span>
-              <span className="shrink-0 text-[10px] text-gray-400">
-                {g.permIds.length}
-              </span>
-            </span>
-          </td>
-          {roleIndexes.map((roleIdx, i) => {
-            const c = seriesColor(i);
-            const held = g.permIds.filter(
-              (id) => (masks.get(id) ?? 0) & (1 << i),
-            ).length;
-            const cls =
-              held === g.permIds.length
-                ? c.text
-                : held === 0
-                  ? "text-gray-300 dark:text-gray-700"
-                  : "text-gray-500 dark:text-gray-400";
-            return (
-              <td
-                key={roleIdx}
-                className="border-l border-gray-100 px-1 py-1 text-center tabular-nums dark:border-gray-800"
-              >
-                <span className="inline-flex items-center gap-1 text-xs">
-                  {/* pie always in the role's color; the text stays dimmed
-                      for partial/empty so full rows pop */}
-                  <span className={`flex ${c.text}`}>
-                    <SparkPie ratio={held / g.permIds.length} />
-                  </span>
-                  <span className={`min-w-[5ch] text-right ${cls}`}>
-                    {held}/{g.permIds.length}
-                  </span>
-                </span>
-              </td>
-            );
-          })}
-          <td />
-        </tr>
-        {opened &&
-          g.permIds.map((id) => {
-            const name = ds.permissions[id];
-            const mask = masks.get(id) ?? 0;
-            return (
-              <tr
-                key={id}
-                className="border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30"
-              >
-                <td className="sticky left-0 z-10 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                  <button
-                    type="button"
-                    onClick={() => state.anchorPerm(name)}
-                    title={ds.permMeta[id]?.description ?? name}
-                    className="block w-full cursor-pointer truncate py-0.5 pr-2 pl-7 text-left font-mono hover:underline"
-                  >
-                    <span className="text-gray-400 dark:text-gray-500">
-                      {permParts(name).group}.
-                    </span>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                      {permParts(name).verb}
-                    </span>
-                    {ds.permMeta[id]?.stage && (
-                      <span className="ml-1.5">
-                        <StageTag stage={ds.permMeta[id]?.stage} />
-                      </span>
-                    )}
-                  </button>
-                </td>
-                {roleIndexes.map((roleIdx, i) => {
-                  const c = seriesColor(i);
-                  const has = (mask & (1 << i)) !== 0;
-                  return (
-                    <td
-                      key={roleIdx}
-                      className="border-l border-gray-100 text-center dark:border-gray-800"
-                    >
-                      {has ? (
-                        <Check size={16} className={`inline-block ${c.text}`} />
-                      ) : (
-                        <span className="text-gray-300 dark:text-gray-700">
-                          −
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-                <td />
-              </tr>
-            );
-          })}
-      </Fragment>
-    );
-  };
+  const toggle = (key: string) => dispatch({ type: "toggleCollapsed", key });
 
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-1.5 dark:border-gray-800">
-        <div className="flex shrink-0 items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={() => setSortMode("diff")}
-            className={`whitespace-nowrap rounded px-2 py-0.5 text-sm cursor-pointer ${
-              sortMode === "diff"
-                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            }`}
-          >
-            {t("compare.sortDiff")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setSortMode("name")}
-            className={`whitespace-nowrap rounded px-2 py-0.5 text-sm cursor-pointer ${
-              sortMode === "name"
-                ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            }`}
-          >
-            {t("compare.sortName")}
-          </button>
-        </div>
+      <MatrixToolbar
+        commonCount={commonCount}
+        groupCount={groupCount}
+        reversed={reversed}
+        showCommon={showCommon}
+        showUnheld={showUnheld}
+        sortMode={sortMode}
+        totalRows={totalRows}
+        onSetSortMode={(value) => dispatch({ type: "setSortMode", value })}
+        onToggleReversed={() => dispatch({ type: "toggleReversed" })}
+        onSetShowCommon={(value) => dispatch({ type: "setShowCommon", value })}
+        onSetShowUnheld={(value) => dispatch({ type: "setShowUnheld", value })}
+      />
+      <MatrixTable
+        ds={ds}
+        state={state}
+        roleIndexes={roleIndexes}
+        n={n}
+        groups={groups}
+        diffSections={diffSections}
+        masks={masks}
+        sortMode={sortMode}
+        reversed={reversed}
+        permW={permW}
+        roleW={roleW}
+        colResizerProps={colResizerProps}
+        isOpen={isOpen}
+        isSectionOpen={isSectionOpen}
+        toggle={toggle}
+        t={t}
+      />
+    </div>
+  );
+}
+
+function MatrixToolbar({
+  commonCount,
+  groupCount,
+  reversed,
+  showCommon,
+  showUnheld,
+  sortMode,
+  totalRows,
+  onSetSortMode,
+  onToggleReversed,
+  onSetShowCommon,
+  onSetShowUnheld,
+}: {
+  commonCount: number;
+  groupCount: number;
+  reversed: boolean;
+  showCommon: boolean;
+  showUnheld: boolean;
+  sortMode: SortMode;
+  totalRows: number;
+  onSetSortMode: (value: SortMode) => void;
+  onToggleReversed: () => void;
+  onSetShowCommon: (value: boolean) => void;
+  onSetShowUnheld: (value: boolean) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-1.5 dark:border-gray-800">
+      <div className="flex shrink-0 items-center gap-0.5 rounded border border-gray-200 p-0.5 dark:border-gray-700">
         <button
           type="button"
-          onClick={() => setReversed((v) => !v)}
-          title={reversed ? t("compare.sortAsc") : t("compare.sortDesc")}
-          aria-label={reversed ? t("compare.sortAsc") : t("compare.sortDesc")}
-          className="flex shrink-0 items-center rounded border border-gray-200 p-1 text-gray-400 hover:text-gray-600 cursor-pointer dark:border-gray-700 dark:hover:text-gray-300"
+          onClick={() => onSetSortMode("diff")}
+          className={`whitespace-nowrap rounded px-2 py-0.5 text-sm cursor-pointer ${
+            sortMode === "diff"
+              ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+              : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          }`}
         >
-          {reversed ? (
-            <ArrowUp size={14} className="inline-block" />
-          ) : (
-            <ArrowDown size={14} className="inline-block" />
-          )}
+          {t("compare.sortDiff")}
         </button>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
-          <input
-            type="checkbox"
-            checked={showCommon}
-            onChange={(e) => setShowCommon(e.target.checked)}
-            className="accent-purple-600"
-          />
-          {t("compare.showCommon", { n: commonCount })}
-        </label>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
-          <input
-            type="checkbox"
-            checked={showUnheld}
-            onChange={(e) => setShowUnheld(e.target.checked)}
-            className="accent-purple-600"
-          />
-          {t("compare.showUnheld")}
-        </label>
-        <span className="ml-auto text-[10px] text-gray-400">
-          {t("compare.groupsAndRows", { groups: groupCount, rows: totalRows })}
-        </span>
-      </div>
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-        {/* fixed layout: the trailing spacer column absorbs the leftover
-            width so the role columns hug the permission column instead of
-            spreading across the pane */}
-        <table
-          className="w-full table-fixed border-collapse text-sm"
-          style={{ minWidth: permW + roleIndexes.length * roleW }}
+        <button
+          type="button"
+          onClick={() => onSetSortMode("name")}
+          className={`whitespace-nowrap rounded px-2 py-0.5 text-sm cursor-pointer ${
+            sortMode === "name"
+              ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+              : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          }`}
         >
-          <thead>
-            <tr className="sticky top-0 z-10 bg-white dark:bg-gray-950">
-              <th
-                className="sticky left-0 z-20 border-r border-b border-gray-200 bg-white px-2 py-1.5 text-left align-bottom dark:border-gray-800 dark:bg-gray-950"
-                style={{ width: permW }}
-              >
-                <span className="text-[10px] font-normal text-gray-400">
-                  {t("compare.permissionColumn")}
+          {t("compare.sortName")}
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onToggleReversed}
+        title={reversed ? t("compare.sortAsc") : t("compare.sortDesc")}
+        aria-label={reversed ? t("compare.sortAsc") : t("compare.sortDesc")}
+        className="flex shrink-0 items-center rounded border border-gray-200 p-1 text-gray-400 hover:text-gray-600 cursor-pointer dark:border-gray-700 dark:hover:text-gray-300"
+      >
+        {reversed ? (
+          <ArrowUp size={14} className="inline-block" />
+        ) : (
+          <ArrowDown size={14} className="inline-block" />
+        )}
+      </button>
+      <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
+        <input
+          type="checkbox"
+          checked={showCommon}
+          onChange={(e) => onSetShowCommon(e.target.checked)}
+          className="accent-purple-600"
+        />
+        {t("compare.showCommon", { n: commonCount })}
+      </label>
+      <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-500">
+        <input
+          type="checkbox"
+          checked={showUnheld}
+          onChange={(e) => onSetShowUnheld(e.target.checked)}
+          className="accent-purple-600"
+        />
+        {t("compare.showUnheld")}
+      </label>
+      <span className="ml-auto text-[10px] text-gray-400">
+        {t("compare.groupsAndRows", { groups: groupCount, rows: totalRows })}
+      </span>
+    </div>
+  );
+}
+
+type ColumnResizerProps = {
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: React.PointerEvent<HTMLDivElement>) => void;
+  className: string;
+};
+
+function MatrixGroupRows({
+  ds,
+  state,
+  roleIndexes,
+  masks,
+  group,
+  collapseKey,
+  isOpen,
+  toggle,
+}: {
+  ds: Dataset;
+  state: ExplorerState;
+  roleIndexes: number[];
+  masks: Map<number, number>;
+  group: MatrixGroup;
+  collapseKey: string;
+  isOpen: (key: string) => boolean;
+  toggle: (key: string) => void;
+}) {
+  const opened = isOpen(collapseKey);
+  return (
+    <Fragment>
+      <tr
+        className="cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900"
+        onClick={() => toggle(collapseKey)}
+      >
+        <td className="sticky left-0 z-10 border-r border-gray-200 bg-gray-50/60 px-2 py-1 dark:border-gray-800 dark:bg-gray-900/40">
+          <span className="flex items-center gap-1.5 overflow-hidden">
+            <span className="flex w-3 shrink-0 text-gray-400">
+              {opened ? (
+                <ChevronDown size={13} className="inline-block" />
+              ) : (
+                <ChevronRight size={13} className="inline-block" />
+              )}
+            </span>
+            <span className="truncate font-mono font-medium text-gray-700 dark:text-gray-300">
+              <MonoName name={group.key} />
+              <span className="text-gray-400">.*</span>
+            </span>
+            <span className="shrink-0 text-[10px] text-gray-400">
+              {group.permIds.length}
+            </span>
+          </span>
+        </td>
+        {roleIndexes.map((roleIdx, i) => {
+          const color = seriesColor(i);
+          const held = group.permIds.filter(
+            (id) => (masks.get(id) ?? 0) & (1 << i),
+          ).length;
+          const className =
+            held === group.permIds.length
+              ? color.text
+              : held === 0
+                ? "text-gray-300 dark:text-gray-700"
+                : "text-gray-500 dark:text-gray-400";
+          return (
+            <td
+              key={roleIdx}
+              className="border-l border-gray-100 px-1 py-1 text-center tabular-nums dark:border-gray-800"
+            >
+              <span className="inline-flex items-center gap-1 text-xs">
+                <span className={`flex ${color.text}`}>
+                  <SparkPie ratio={held / group.permIds.length} />
                 </span>
-                <div {...colResizerProps("perm", permW)} />
-              </th>
+                <span className={`min-w-[5ch] text-right ${className}`}>
+                  {held}/{group.permIds.length}
+                </span>
+              </span>
+            </td>
+          );
+        })}
+        <td aria-hidden="true" tabIndex={-1} />
+      </tr>
+      {opened &&
+        group.permIds.map((id) => {
+          const name = ds.permissions[id];
+          const mask = masks.get(id) ?? 0;
+          return (
+            <tr
+              key={id}
+              className="border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30"
+            >
+              <td className="sticky left-0 z-10 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                <button
+                  type="button"
+                  onClick={() => state.anchorPerm(name)}
+                  title={ds.permMeta[id]?.description ?? name}
+                  aria-label={name}
+                  className="block w-full cursor-pointer truncate py-0.5 pr-2 pl-7 text-left font-mono hover:underline"
+                >
+                  <span className="text-gray-400 dark:text-gray-500">
+                    {permParts(name).group}.
+                  </span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {permParts(name).verb}
+                  </span>
+                  {ds.permMeta[id]?.stage && (
+                    <span className="ml-1.5">
+                      <StageTag stage={ds.permMeta[id]?.stage} />
+                    </span>
+                  )}
+                </button>
+              </td>
               {roleIndexes.map((roleIdx, i) => {
-                const role = ds.roles[roleIdx];
-                const c = seriesColor(i);
-                // break after "roles/<service>." so long names don't blow up
-                // the column ("roles/admin" splits into "roles/" + "admin")
-                const dot = role.name.indexOf(".");
-                const head =
-                  dot === -1 ? "roles/" : role.name.slice(0, dot + 1);
-                const tail =
-                  dot === -1
-                    ? shortRoleName(role.name)
-                    : role.name.slice(dot + 1);
+                const color = seriesColor(i);
+                const has = (mask & (1 << i)) !== 0;
                 return (
-                  <th
+                  <td
                     key={roleIdx}
-                    className="relative border-b border-l border-gray-100 border-b-gray-200 px-1 py-1.5 text-center align-bottom dark:border-gray-800 dark:border-b-gray-800"
-                    style={{ width: roleW }}
-                    title={role.name}
+                    className="border-l border-gray-100 text-center dark:border-gray-800"
                   >
-                    <span
-                      className={`block truncate font-mono text-[10px] font-normal opacity-70 ${c.text}`}
-                    >
-                      {head}
-                    </span>
-                    <span
-                      className={`block truncate font-mono text-[11px] font-semibold ${c.text}`}
-                    >
-                      {tail}
-                    </span>
-                    <span className="text-[10px] text-gray-400">
-                      {role.permIds.length}
-                    </span>
-                    <div {...colResizerProps("role", roleW)} />
-                  </th>
+                    {has ? (
+                      <Check
+                        size={16}
+                        className={`inline-block ${color.text}`}
+                      />
+                    ) : (
+                      <span className="text-gray-300 dark:text-gray-700">
+                        −
+                      </span>
+                    )}
+                  </td>
                 );
               })}
-              {/* spacer column: absorbs the leftover pane width */}
-              <th className="border-b border-gray-200 dark:border-gray-800" />
+              <td aria-hidden="true" tabIndex={-1} />
             </tr>
-          </thead>
-          <tbody>
-            {sortMode === "name"
-              ? (reversed ? [...groups].reverse() : groups).map((g) =>
-                  renderGroupRows(g, g.key),
-                )
-              : diffSections
-                  .filter((s) => s.alwaysShow || s.permIds.length > 0)
-                  .map((s) => {
-                    const sectionOpen = isSectionOpen(s.key);
-                    const sectionGroups = groupMatrixRows(ds, s.permIds);
-                    const isEmpty = s.permIds.length === 0;
-                    return (
-                      <Fragment key={s.key}>
-                        <tr
-                          className="cursor-pointer border-y border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900"
-                          onClick={() => toggle(s.key)}
-                        >
-                          <td
-                            colSpan={roleIndexes.length + 2}
-                            className="sticky left-0 z-10 bg-white px-3 py-1.5 dark:bg-gray-950"
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className="flex w-3.5 shrink-0 text-gray-400">
-                                {sectionOpen ? (
-                                  <ChevronDown
-                                    size={14}
-                                    className="inline-block"
-                                  />
-                                ) : (
-                                  <ChevronRight
-                                    size={14}
-                                    className="inline-block"
-                                  />
-                                )}
-                              </span>
-                              <DotRow
-                                mask={s.mask < 0 ? 0 : s.mask}
-                                n={n}
-                                reversed={reversed}
-                              />
-                              <span className="text-sm font-semibold">
-                                {s.parts.map((p, idx) => (
-                                  // biome-ignore lint/suspicious/noArrayIndexKey: parts order is stable within a section
-                                  <span key={idx} className={p.className}>
-                                    {p.text}
-                                  </span>
-                                ))}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {s.permIds.length}
-                              </span>
-                            </span>
-                          </td>
-                        </tr>
-                        {sectionOpen && isEmpty && (
-                          <tr className="border-b border-gray-50 dark:border-gray-900">
-                            <td
-                              colSpan={roleIndexes.length + 2}
-                              className="py-0.5 pl-9 text-xs text-gray-400"
-                            >
-                              {t("compare.none")}
-                            </td>
-                          </tr>
-                        )}
-                        {sectionOpen &&
-                          sectionGroups.map((g) =>
-                            renderGroupRows(g, `${s.mask}/${g.key}`),
-                          )}
-                      </Fragment>
-                    );
-                  })}
-          </tbody>
-        </table>
-      </div>
+          );
+        })}
+    </Fragment>
+  );
+}
+
+function MatrixSectionRows({
+  ds,
+  state,
+  roleIndexes,
+  n,
+  masks,
+  section,
+  reversed,
+  isGroupOpen,
+  isSectionOpen,
+  toggle,
+  t,
+}: {
+  ds: Dataset;
+  state: ExplorerState;
+  roleIndexes: number[];
+  n: number;
+  masks: Map<number, number>;
+  section: DiffSection;
+  reversed: boolean;
+  isGroupOpen: (key: string) => boolean;
+  isSectionOpen: (key: string) => boolean;
+  toggle: (key: string) => void;
+  t: Translate;
+}) {
+  const sectionOpen = isSectionOpen(section.key);
+  const sectionGroups = groupMatrixRows(ds, section.permIds);
+  const isEmpty = section.permIds.length === 0;
+  return (
+    <Fragment>
+      <tr
+        className="cursor-pointer border-y border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900"
+        onClick={() => toggle(section.key)}
+      >
+        <td
+          colSpan={roleIndexes.length + 2}
+          className="sticky left-0 z-10 bg-white px-3 py-1.5 dark:bg-gray-950"
+        >
+          <span className="flex items-center gap-2">
+            <span className="flex w-3.5 shrink-0 text-gray-400">
+              {sectionOpen ? (
+                <ChevronDown size={14} className="inline-block" />
+              ) : (
+                <ChevronRight size={14} className="inline-block" />
+              )}
+            </span>
+            <DotRow
+              mask={section.mask < 0 ? 0 : section.mask}
+              n={n}
+              reversed={reversed}
+            />
+            <span className="text-sm font-semibold">
+              {section.parts.map((part) => (
+                <span key={part.key} className={part.className}>
+                  {part.text}
+                </span>
+              ))}
+            </span>
+            <span className="text-xs text-gray-400">
+              {section.permIds.length}
+            </span>
+          </span>
+        </td>
+      </tr>
+      {sectionOpen && isEmpty && (
+        <tr className="border-b border-gray-50 dark:border-gray-900">
+          <td
+            colSpan={roleIndexes.length + 2}
+            className="py-0.5 pl-9 text-xs text-gray-400"
+          >
+            {t("compare.none")}
+          </td>
+        </tr>
+      )}
+      {sectionOpen &&
+        sectionGroups.map((group) => (
+          <MatrixGroupRows
+            key={`${section.mask}/${group.key}`}
+            ds={ds}
+            state={state}
+            roleIndexes={roleIndexes}
+            masks={masks}
+            group={group}
+            collapseKey={`${section.mask}/${group.key}`}
+            isOpen={isGroupOpen}
+            toggle={toggle}
+          />
+        ))}
+    </Fragment>
+  );
+}
+
+function MatrixTable({
+  ds,
+  state,
+  roleIndexes,
+  n,
+  groups,
+  diffSections,
+  masks,
+  sortMode,
+  reversed,
+  permW,
+  roleW,
+  colResizerProps,
+  isOpen,
+  isSectionOpen,
+  toggle,
+  t,
+}: {
+  ds: Dataset;
+  state: ExplorerState;
+  roleIndexes: number[];
+  n: number;
+  groups: MatrixGroup[];
+  diffSections: DiffSection[];
+  masks: Map<number, number>;
+  sortMode: SortMode;
+  reversed: boolean;
+  permW: number;
+  roleW: number;
+  colResizerProps: (
+    column: "perm" | "role",
+    width: number,
+  ) => ColumnResizerProps;
+  isOpen: (key: string) => boolean;
+  isSectionOpen: (key: string) => boolean;
+  toggle: (key: string) => void;
+  t: Translate;
+}) {
+  const bodyRows: ReactNode[] = [];
+  if (sortMode === "name") {
+    const orderedGroups = reversed ? [...groups].reverse() : groups;
+    for (const group of orderedGroups) {
+      bodyRows.push(
+        <MatrixGroupRows
+          key={group.key}
+          ds={ds}
+          state={state}
+          roleIndexes={roleIndexes}
+          masks={masks}
+          group={group}
+          collapseKey={group.key}
+          isOpen={isOpen}
+          toggle={toggle}
+        />,
+      );
+    }
+  } else {
+    for (const section of diffSections) {
+      if (!section.alwaysShow && section.permIds.length === 0) continue;
+      bodyRows.push(
+        <MatrixSectionRows
+          key={section.key}
+          ds={ds}
+          state={state}
+          roleIndexes={roleIndexes}
+          n={n}
+          masks={masks}
+          section={section}
+          reversed={reversed}
+          isGroupOpen={isOpen}
+          isSectionOpen={isSectionOpen}
+          toggle={toggle}
+          t={t}
+        />,
+      );
+    }
+  }
+
+  return (
+    <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+      <table
+        className="w-full table-fixed border-collapse text-sm"
+        style={{ minWidth: permW + roleIndexes.length * roleW }}
+      >
+        <thead>
+          <tr className="sticky top-0 z-10 bg-white dark:bg-gray-950">
+            <th
+              className="sticky left-0 z-20 border-r border-b border-gray-200 bg-white px-2 py-1.5 text-left align-bottom dark:border-gray-800 dark:bg-gray-950"
+              style={{ width: permW }}
+            >
+              <span className="text-[10px] font-normal text-gray-400">
+                {t("compare.permissionColumn")}
+              </span>
+              <div {...colResizerProps("perm", permW)} />
+            </th>
+            {roleIndexes.map((roleIdx, i) => {
+              const role = ds.roles[roleIdx];
+              const color = seriesColor(i);
+              const dot = role.name.indexOf(".");
+              const head = dot === -1 ? "roles/" : role.name.slice(0, dot + 1);
+              const tail =
+                dot === -1
+                  ? shortRoleName(role.name)
+                  : role.name.slice(dot + 1);
+              return (
+                <th
+                  key={roleIdx}
+                  className="relative border-b border-l border-gray-100 border-b-gray-200 px-1 py-1.5 text-center align-bottom dark:border-gray-800 dark:border-b-gray-800"
+                  style={{ width: roleW }}
+                  title={role.name}
+                >
+                  <span
+                    className={`block truncate font-mono text-[10px] font-normal opacity-70 ${color.text}`}
+                  >
+                    {head}
+                  </span>
+                  <span
+                    className={`block truncate font-mono text-[11px] font-semibold ${color.text}`}
+                  >
+                    {tail}
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    {role.permIds.length}
+                  </span>
+                  <div {...colResizerProps("role", roleW)} />
+                </th>
+              );
+            })}
+            <th
+              aria-hidden="true"
+              tabIndex={-1}
+              className="border-b border-gray-200 dark:border-gray-800"
+            />
+          </tr>
+        </thead>
+        <tbody>{bodyRows}</tbody>
+      </table>
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { type MsgKey, useT } from "../lib/i18n";
+import { useT } from "../lib/i18n";
+import type { MsgKey } from "../lib/i18n-data";
 import type { ExplorerState } from "../lib/url-state";
 import { EntityChip, StageTag } from "./primitives";
 

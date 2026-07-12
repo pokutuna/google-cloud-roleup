@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export const DEFAULT_PINNED_SERVICES: string[] = [
+const DEFAULT_PINNED_SERVICES: string[] = [
   "iam",
   "bigquery",
   "storage",
@@ -91,18 +91,20 @@ function createPinnedStore(
     notify();
   }
 
+  function toggle(key: string): void {
+    const current = getSnapshot();
+    const next = current.includes(key)
+      ? current.filter((p) => p !== key)
+      : [...current, key];
+    setPinned(next);
+  }
+
+  function reset(): void {
+    resetPinned();
+  }
+
   return function usePinnedStore() {
     const pinned = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-
-    const toggle = (key: string) => {
-      const current = getSnapshot();
-      const next = current.includes(key)
-        ? current.filter((p) => p !== key)
-        : [...current, key];
-      setPinned(next);
-    };
-
-    const reset = () => resetPinned();
 
     return { pinned, toggle, reset, isDefault: snapshot === null };
   };
