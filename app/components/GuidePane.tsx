@@ -40,67 +40,71 @@ const COMPOUND_EXAMPLE = {
 export function GuidePane({ state }: { state: ExplorerState }) {
   const t = useT();
   return (
-    <div className="mx-auto flex h-full max-w-lg flex-col justify-center gap-6 p-8 text-sm text-gray-600 dark:text-gray-300">
-      <div>
-        <div className="mb-6">
-          <div className="flex items-baseline gap-2">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-              Google Cloud RoleUp
-            </h2>
-            <span
-              title={t("header.unofficialTooltip")}
-              className="shrink-0 text-xs text-gray-400 dark:text-gray-500"
-            >
-              {t("header.unofficial")}
-            </span>
+    <div className="flex h-full flex-col overflow-y-auto p-8 text-sm text-gray-600 dark:text-gray-300">
+      <div className="mx-auto my-auto flex w-full max-w-lg flex-col gap-6">
+        <div>
+          <div className="mb-6">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                Google Cloud RoleUp
+              </h2>
+              <span
+                title={t("header.unofficialTooltip")}
+                className="shrink-0 text-xs text-gray-400 dark:text-gray-500"
+              >
+                {t("header.unofficial")}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-gray-500">{t("app.subtitle")}</p>
           </div>
-          <p className="mt-1 text-sm text-gray-500">{t("app.subtitle")}</p>
+          <ul className="mt-3 list-inside list-disc space-y-1.5">
+            <li>{t("guide.bullet1")}</li>
+            <li>{t("guide.bullet2")}</li>
+            <li>{t("guide.bullet3")}</li>
+          </ul>
         </div>
-        <ul className="mt-3 list-inside list-disc space-y-1.5">
-          <li>{t("guide.bullet1")}</li>
-          <li>{t("guide.bullet2")}</li>
-          <li>{t("guide.bullet3")}</li>
-        </ul>
-      </div>
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          {t("guide.searchExamples")}
-        </h3>
-        <ul className="mt-2 space-y-1.5">
-          {SINGLE_EXAMPLES.map((ex) => (
-            <li key={ex.q} className="flex items-center gap-2">
-              <EntityChip
-                kind={ex.kind}
-                label={ex.label}
-                onClick={() => state.setQ(ex.q)}
-              />
-              <span className="text-gray-400">{t(ex.descKey)}</span>
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            {t("guide.searchExamples")}
+          </h3>
+          <ul className="mt-2 space-y-1.5">
+            {SINGLE_EXAMPLES.map((ex) => (
+              <li key={ex.q} className="flex items-center gap-2">
+                <EntityChip
+                  kind={ex.kind}
+                  label={ex.label}
+                  onClick={() => state.setQ(ex.q)}
+                />
+                <span className="text-gray-400">{t(ex.descKey)}</span>
+              </li>
+            ))}
+            <li className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => state.setQ(COMPOUND_EXAMPLE.q)}
+                className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700 hover:underline cursor-pointer dark:bg-gray-800 dark:text-gray-300"
+              >
+                {COMPOUND_EXAMPLE.q.trim()}
+              </button>
+              <span className="text-gray-400">
+                {t(COMPOUND_EXAMPLE.descKey)}
+              </span>
             </li>
-          ))}
-          <li className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => state.setQ(COMPOUND_EXAMPLE.q)}
-              className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700 hover:underline cursor-pointer dark:bg-gray-800 dark:text-gray-300"
-            >
-              {COMPOUND_EXAMPLE.q.trim()}
-            </button>
-            <span className="text-gray-400">{t(COMPOUND_EXAMPLE.descKey)}</span>
-          </li>
-        </ul>
-      </div>
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-          {t("guide.badgeMeaning")}
-        </h3>
-        <ul className="mt-2 space-y-1.5">
-          {ALL_BADGES.map((badge) => (
-            <li key={badge.id} className="flex items-baseline gap-2">
-              <BadgeTag badge={badge} />
-              <span className="text-gray-400">{t(badge.hintKey)}</span>
-            </li>
-          ))}
-        </ul>
+          </ul>
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            {t("guide.badgeMeaning")}
+          </h3>
+          <ul className="mt-2 space-y-1.5">
+            {ALL_BADGES.map((badge) => (
+              <li key={badge.id} className="flex items-baseline gap-2">
+                <BadgeTag badge={badge} />
+                <span className="text-gray-400">{t(badge.hintKey)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
