@@ -114,7 +114,7 @@ function RoleRow({
       </span>
       <button
         type="button"
-        onClick={() => state.select({ type: "r", name: short })}
+        onClick={() => state.toggle({ type: "r", name: short })}
         className="flex min-w-0 flex-1 items-baseline gap-2 text-left cursor-pointer"
       >
         {/* the role name never shrinks (the title truncates instead); the
