@@ -13,8 +13,6 @@ import { StageTag } from "./primitives";
 
 /** Threshold above which the list defaults to collapsed-by-resource. */
 const AUTO_COLLAPSE_THRESHOLD = 200;
-/** Below this size the "collapse all / expand all" row isn't worth showing. */
-const BULK_TOGGLE_MIN = 10;
 
 function GroupRowView({
   row,
@@ -139,24 +137,22 @@ export function PermGroupList({
 
   return (
     <div className="flex h-full flex-col text-sm">
-      {permIds.length >= BULK_TOGGLE_MIN && (
-        <div className="flex justify-end gap-2 border-b border-gray-100 px-2 py-0.5 text-[10px] dark:border-gray-800">
-          <button
-            type="button"
-            onClick={collapseAll}
-            className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
-          >
-            {t("permgroup.collapseAll")}
-          </button>
-          <button
-            type="button"
-            onClick={expandAll}
-            className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
-          >
-            {t("permgroup.expandAll")}
-          </button>
-        </div>
-      )}
+      <div className="flex justify-end gap-2 border-b border-gray-100 px-2 py-0.5 text-[10px] dark:border-gray-800">
+        <button
+          type="button"
+          onClick={collapseAll}
+          className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
+        >
+          {t("permgroup.collapseAll")}
+        </button>
+        <button
+          type="button"
+          onClick={expandAll}
+          className="text-gray-400 hover:text-gray-600 hover:underline cursor-pointer dark:hover:text-gray-300"
+        >
+          {t("permgroup.expandAll")}
+        </button>
+      </div>
       <Virtuoso
         className="min-h-0 flex-1"
         totalCount={rows.length}
