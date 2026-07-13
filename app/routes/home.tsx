@@ -165,6 +165,25 @@ export default function Home({ loaderData: ds }: Route.ComponentProps) {
         ? t("home.tabCompare", { n: selRoleIdxs.length })
         : t("home.tabDetail");
 
+  useEffect(() => {
+    const TITLE_ROLE_LIMIT = 3;
+    const parts: string[] = [];
+    if (permId !== undefined) {
+      parts.push(ds.permissions[permId]);
+    } else if (selRoleIdxs.length >= 2) {
+      const names = selRoleIdxs.map((i) => ds.roles[i].name);
+      const shown = names.slice(0, TITLE_ROLE_LIMIT).join(", ");
+      const rest = names.length - TITLE_ROLE_LIMIT;
+      const suffix =
+        rest > 0 ? ` and ${rest} more role${rest > 1 ? "s" : ""}` : "";
+      parts.push(`${shown}${suffix}`);
+    } else if (selRoleIdxs.length === 1) {
+      parts.push(ds.roles[selRoleIdxs[0]].name);
+    }
+    parts.push(SITE_TITLE);
+    document.title = parts.join(" - ");
+  }, [ds, permId, selRoleIdxs]);
+
   return (
     <div
       className={`flex h-dvh flex-col text-gray-900 dark:text-gray-100 ${dragging ? "select-none" : ""}`}
