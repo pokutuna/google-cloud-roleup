@@ -1,5 +1,4 @@
-import { Command } from "cmdk";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type Dataset, serviceDisplayName, shortRoleName } from "../lib/data";
 import { useT } from "../lib/i18n";
 import { suggest } from "../lib/search";
@@ -16,171 +15,275 @@ function replaceLastToken(q: string, replacement: string): string {
 const GROUP_HEADING =
   "px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400";
 const ITEM =
-  "flex cursor-pointer items-baseline gap-2 rounded px-2 py-1 text-sm data-[selected=true]:bg-gray-100 dark:data-[selected=true]:bg-gray-800";
+  "flex w-full cursor-pointer items-baseline gap-2 rounded px-2 py-1 text-left text-sm hover:bg-gray-50 data-[selected=true]:bg-gray-100 dark:hover:bg-gray-800/50 dark:data-[selected=true]:bg-gray-800";
+
+interface Suggestion {
+  key: string;
+  onSelect: () => void;
+  render: React.ReactNode;
+}
 
 export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
   const t = useT();
-  const [focused, setFocused] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // The input owns its text locally so keystrokes render synchronously;
-  // state.setQ routes through a router navigation (startTransition), which
-  // would otherwise lag the controlled value. External q changes (example
-  // clicks, filter-notice clear, back button) sync back into the input.
+  // The input owns its text locally so every keystroke renders synchronously
+  // with browser-default editing behavior; state.setQ routes through a router
+  // navigation that re-renders the whole app, so the query is only committed
+  // at boundaries: a completed token (space), Enter, leaving the field, or
+  // picking a suggestion. External q changes (example clicks, filter-notice
+  // clear, back button) sync back into the input.
   const [text, setText] = useState(() => state.q);
   const lastQ = useRef(state.q);
   if (lastQ.current !== state.q) {
     lastQ.current = state.q;
     if (text !== state.q) setText(state.q);
   }
-  // Enter only commits a suggestion the user explicitly highlighted with the
-  // arrow keys; otherwise the raw query stands as typed (the list is just
-  // dismissed). cmdk auto-highlights the first item, so without this guard
-  // Enter would always select something.
-  const navigated = useRef(false);
-  // setQ triggers a router navigation that re-renders the whole app, so
-  // keystrokes only update the local text immediately and the query is
-  // committed after a short pause (or right away on Enter / selection).
-  const commitTimer = useRef<number | undefined>(undefined);
   const commit = (value: string) => {
-    window.clearTimeout(commitTimer.current);
+    if (lastQ.current === value) return;
     lastQ.current = value;
     state.setQ(value);
   };
-  const onValueChange = (value: string) => {
-    navigated.current = false;
-    setFocused(true);
+
+  // The suggestion list shows while focus is anywhere inside the component
+  // (input or the list's option buttons), unless dismissed with Escape.
+  const [focusWithin, setFocusWithin] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  // Keyboard highlight; -1 means nothing highlighted, so Enter applies the
+  // query as typed instead of selecting a suggestion.
+  const [highlight, setHighlight] = useState(-1);
+
+  // While an IME composition is active, onChange fires for every intermediate
+  // conversion candidate; hold off any commit until the composition settles.
+  const composing = useRef(false);
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
     setText(value);
-    window.clearTimeout(commitTimer.current);
-    commitTimer.current = window.setTimeout(() => commit(value), 150);
-  };
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      navigated.current = true;
-    } else if (e.key === "Enter" && !navigated.current) {
-      // stopPropagation keeps cmdk's root handler from selecting the
-      // auto-highlighted item; Enter applies the query as typed and just
-      // dismisses the suggestion list
-      e.stopPropagation();
-      commit(text);
-      setFocused(false);
-    }
+    setDismissed(false);
+    setHighlight(-1);
+    if (composing.current) return;
+    // token boundary: a typed space commits the tokens completed so far;
+    // clearing the field commits immediately so the list un-filters
+    const inserted = (e.nativeEvent as InputEvent).data;
+    if (inserted === " " || value.trim() === "") commit(value);
   };
 
+  // suggest() scans every role and permission, so recomputing it on each
+  // keystroke is the expensive part. Debounce the term it runs on rather
+  // than the raw text.
+  const [suggestText, setSuggestText] = useState(text);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSuggestText(text), 150);
+    return () => window.clearTimeout(timer);
+  }, [text]);
   const sugg = useMemo(
     () =>
-      text.trim()
-        ? suggest(ds, text, 6, {
+      suggestText.trim()
+        ? suggest(ds, suggestText, 6, {
             includeServiceAgents: state.showServiceAgents,
           })
         : null,
-    [ds, text, state.showServiceAgents],
-  );
-  const open =
-    focused &&
-    sugg !== null &&
-    sugg.services.length + sugg.roleIndexes.length + sugg.permIds.length > 0;
-  const serviceHeading = useMemo(
-    () => <span className={GROUP_HEADING}>{t("omnibox.groupService")}</span>,
-    [t],
-  );
-  const roleHeading = useMemo(
-    () => <span className={GROUP_HEADING}>{t("omnibox.groupRole")}</span>,
-    [t],
-  );
-  const permissionHeading = useMemo(
-    () => <span className={GROUP_HEADING}>{t("omnibox.groupPermission")}</span>,
-    [t],
+    [ds, suggestText, state.showServiceAgents],
   );
 
+  const groups: { heading: string; items: Suggestion[] }[] = [];
+  if (sugg) {
+    if (sugg.services.length > 0) {
+      groups.push({
+        heading: t("omnibox.groupService"),
+        items: sugg.services.map((prefix) => ({
+          key: `s:${prefix}`,
+          onSelect: () => {
+            const value = `${replaceLastToken(text, `s:${prefix}`)} `;
+            setText(value);
+            commit(value);
+            inputRef.current?.focus();
+          },
+          render: (
+            <>
+              <span className={`font-mono text-xs ${ENTITY.s.text}`}>s:</span>
+              <span className="font-mono">{prefix}</span>
+              <span className="truncate text-xs text-gray-400">
+                {serviceDisplayName(ds, prefix)}
+              </span>
+            </>
+          ),
+        })),
+      });
+    }
+    if (sugg.roleIndexes.length > 0) {
+      groups.push({
+        heading: t("omnibox.groupRole"),
+        items: sugg.roleIndexes.map((idx) => {
+          const role = ds.roles[idx];
+          const short = shortRoleName(role.name);
+          return {
+            key: `r:${short}`,
+            onSelect: () => {
+              state.select({ type: "r", name: short });
+              setDismissed(true);
+            },
+            render: (
+              <>
+                <span className={`font-mono text-xs ${ENTITY.r.text}`}>r:</span>
+                <span className="font-mono">{short}</span>
+                <span className="truncate text-xs text-gray-400">
+                  {role.title} · {role.permIds.length} perms
+                </span>
+              </>
+            ),
+          };
+        }),
+      });
+    }
+    if (sugg.permIds.length > 0) {
+      groups.push({
+        heading: t("omnibox.groupPermission"),
+        items: sugg.permIds.map((id) => ({
+          key: `p:${ds.permissions[id]}`,
+          onSelect: () => {
+            state.anchorPerm(ds.permissions[id]);
+            setDismissed(true);
+          },
+          render: (
+            <>
+              <span className={`font-mono text-xs ${ENTITY.p.text}`}>p:</span>
+              <span className="truncate font-mono">{ds.permissions[id]}</span>
+              {ds.permMeta[id]?.title && (
+                <span className="truncate text-xs text-gray-400">
+                  {ds.permMeta[id].title}
+                </span>
+              )}
+            </>
+          ),
+        })),
+      });
+    }
+  }
+  const flat = groups.flatMap((g) => g.items);
+
+  // new suggestions invalidate a highlight pointing at the old list
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on list change
+  useEffect(() => setHighlight(-1), [sugg]);
+
+  const open = focusWithin && !dismissed && flat.length > 0;
+
+  // cycle through [none, item 0, ..., item n-1]; -1 (none) is a stop so the
+  // user can always get back to "Enter applies the query as typed"
+  const moveHighlight = (delta: number) => {
+    if (!open) return;
+    const states = flat.length + 1;
+    const idx = ((highlight + 1 + delta + states) % states) - 1;
+    setHighlight(idx);
+    listRef.current
+      ?.querySelector(`[data-index="${idx}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (composing.current || e.nativeEvent.isComposing) return;
+    const isCtrl = e.ctrlKey && !e.metaKey && !e.altKey;
+    if (e.key === "ArrowDown" || (isCtrl && e.key === "n")) {
+      e.preventDefault();
+      moveHighlight(1);
+    } else if (e.key === "ArrowUp" || (isCtrl && e.key === "p")) {
+      e.preventDefault();
+      moveHighlight(-1);
+    } else if (e.key === "Enter") {
+      if (open && highlight >= 0) {
+        e.preventDefault();
+        flat[highlight].onSelect();
+      } else {
+        commit(text);
+        setDismissed(true);
+      }
+    } else if (e.key === "Escape") {
+      setDismissed(true);
+    }
+    // everything else (readline chords, Home/End, ...) is left to the browser
+  };
+
+  let itemIndex = -1;
   return (
-    <Command
-      shouldFilter={false}
+    // biome-ignore lint/a11y/noStaticElementInteractions: focus/blur only track whether focus is within the combobox
+    <div
+      ref={rootRef}
       className="relative flex-1"
-      label={t("header.searchLabel")}
+      onFocus={() => setFocusWithin(true)}
+      onBlur={(e) => {
+        if (rootRef.current?.contains(e.relatedTarget as Node | null)) return;
+        setFocusWithin(false);
+        setDismissed(false);
+        commit(text);
+      }}
     >
-      <Command.Input
+      <input
         ref={inputRef}
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="omnibox-listbox"
+        aria-autocomplete="list"
+        aria-activedescendant={
+          open && highlight >= 0 ? `omnibox-option-${highlight}` : undefined
+        }
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        aria-label={t("header.searchLabel")}
         value={text}
-        onValueChange={onValueChange}
+        onChange={onChange}
+        onCompositionStart={() => {
+          composing.current = true;
+        }}
+        onCompositionEnd={() => {
+          composing.current = false;
+        }}
         onKeyDown={onKeyDown}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 150)}
         placeholder={t("omnibox.placeholder")}
         className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:focus:ring-purple-900"
       />
-      <Command.List
-        hidden={!open}
-        className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-      >
-        {sugg && sugg.services.length > 0 && (
-          <Command.Group heading={serviceHeading}>
-            {sugg.services.map((prefix) => (
-              <Command.Item
-                key={`s:${prefix}`}
-                value={`s:${prefix}`}
-                onSelect={() => {
-                  const value = `${replaceLastToken(text, `s:${prefix}`)} `;
-                  setText(value);
-                  commit(value);
-                  inputRef.current?.focus();
-                }}
-                className={ITEM}
-              >
-                <span className={`font-mono text-xs ${ENTITY.s.text}`}>s:</span>
-                <span className="font-mono">{prefix}</span>
-                <span className="truncate text-xs text-gray-400">
-                  {serviceDisplayName(ds, prefix)}
-                </span>
-              </Command.Item>
-            ))}
-          </Command.Group>
-        )}
-        {sugg && sugg.roleIndexes.length > 0 && (
-          <Command.Group heading={roleHeading}>
-            {sugg.roleIndexes.map((idx) => {
-              const role = ds.roles[idx];
-              const short = shortRoleName(role.name);
-              return (
-                <Command.Item
-                  key={`r:${short}`}
-                  value={`r:${short}`}
-                  onSelect={() => state.select({ type: "r", name: short })}
-                  className={ITEM}
-                >
-                  <span className={`font-mono text-xs ${ENTITY.r.text}`}>
-                    r:
-                  </span>
-                  <span className="font-mono">{short}</span>
-                  <span className="truncate text-xs text-gray-400">
-                    {role.title} · {role.permIds.length} perms
-                  </span>
-                </Command.Item>
-              );
-            })}
-          </Command.Group>
-        )}
-        {sugg && sugg.permIds.length > 0 && (
-          <Command.Group heading={permissionHeading}>
-            {sugg.permIds.map((id) => (
-              <Command.Item
-                key={`p:${ds.permissions[id]}`}
-                value={`p:${ds.permissions[id]}`}
-                onSelect={() => state.anchorPerm(ds.permissions[id])}
-                className={ITEM}
-              >
-                <span className={`font-mono text-xs ${ENTITY.p.text}`}>p:</span>
-                <span className="truncate font-mono">{ds.permissions[id]}</span>
-                {ds.permMeta[id]?.title && (
-                  <span className="truncate text-xs text-gray-400">
-                    {ds.permMeta[id].title}
-                  </span>
-                )}
-              </Command.Item>
-            ))}
-          </Command.Group>
-        )}
-      </Command.List>
-    </Command>
+      {open && (
+        <div
+          ref={listRef}
+          id="omnibox-listbox"
+          role="listbox"
+          aria-label={t("header.searchLabel")}
+          // keep focus in the input while clicking options so the list
+          // doesn't close from the blur before the click lands
+          onMouseDown={(e) => e.preventDefault()}
+          className="absolute z-30 mt-1 max-h-96 w-full overflow-y-auto rounded-md border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+        >
+          {groups.map((group) => (
+            <div key={group.heading}>
+              <span className={GROUP_HEADING}>{group.heading}</span>
+              {group.items.map((item) => {
+                itemIndex++;
+                const idx = itemIndex;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    tabIndex={-1}
+                    role="option"
+                    id={`omnibox-option-${idx}`}
+                    aria-selected={idx === highlight}
+                    data-index={idx}
+                    data-selected={idx === highlight || undefined}
+                    onClick={item.onSelect}
+                    className={ITEM}
+                  >
+                    {item.render}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

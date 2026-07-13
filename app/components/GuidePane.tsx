@@ -1,7 +1,20 @@
+import { Link } from "react-router";
 import { useT } from "../lib/i18n";
 import type { MsgKey } from "../lib/i18n-data";
 import type { ExplorerState } from "../lib/url-state";
-import { EntityChip, StageTag } from "./primitives";
+import { encodeSel } from "../lib/url-state";
+import { EntityChip } from "./primitives";
+
+const DETAIL_EXAMPLE_SEL = encodeURIComponent(
+  encodeSel([{ type: "r", name: "bigquery.user" }]),
+);
+const COMPARE_EXAMPLE_SEL = encodeURIComponent(
+  encodeSel([
+    { type: "r", name: "bigquery.dataOwner" },
+    { type: "r", name: "bigquery.dataEditor" },
+    { type: "r", name: "bigquery.dataViewer" },
+  ]),
+);
 
 /** Single-qualifier example rendered as an EntityChip. */
 const SINGLE_EXAMPLES: {
@@ -53,8 +66,36 @@ export function GuidePane({ state }: { state: ExplorerState }) {
             <p className="mt-1 text-sm text-gray-500">{t("app.subtitle")}</p>
           </div>
           <ul className="mt-3 list-inside list-disc space-y-1.5">
-            <li>{t("guide.bullet1")}</li>
-            <li>{t("guide.bullet2")}</li>
+            <li>
+              {t("guide.bullet1")}
+              <ul className="mt-1 list-none pl-5">
+                <li>
+                  {t("guide.example")}
+                  {": "}
+                  <Link
+                    to={`/?sel=${DETAIL_EXAMPLE_SEL}`}
+                    className="font-mono text-xs text-purple-600 hover:underline dark:text-purple-400"
+                  >
+                    roles/bigquery.user
+                  </Link>
+                </li>
+              </ul>
+            </li>
+            <li>
+              {t("guide.bullet2")}
+              <ul className="mt-1 list-none pl-5">
+                <li>
+                  {t("guide.example")}
+                  {": "}
+                  <Link
+                    to={`/?sel=${COMPARE_EXAMPLE_SEL}`}
+                    className="font-mono text-xs text-purple-600 hover:underline dark:text-purple-400"
+                  >
+                    roles/bigquery.{"{"}dataOwner,dataEditor,dataViewer{"}"}
+                  </Link>
+                </li>
+              </ul>
+            </li>
             <li>{t("guide.bullet3")}</li>
           </ul>
         </div>
@@ -73,23 +114,6 @@ export function GuidePane({ state }: { state: ExplorerState }) {
                 <span className="text-gray-400">{t(ex.descKey)}</span>
               </li>
             ))}
-          </ul>
-        </div>
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            {t("guide.stageMeaning")}
-          </h3>
-          <ul className="mt-2 space-y-1.5">
-            <li className="flex items-baseline gap-2">
-              <StageTag stage="DEPRECATED" />
-              <span className="text-gray-400">
-                {t("guide.stageDeprecated")}
-              </span>
-            </li>
-            <li className="flex items-baseline gap-2">
-              <StageTag stage="BETA" />
-              <span className="text-gray-400">{t("guide.stageBeta")}</span>
-            </li>
           </ul>
         </div>
       </div>

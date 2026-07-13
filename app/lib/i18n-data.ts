@@ -207,6 +207,10 @@ const MESSAGES = {
     ja: "チェックボックスで 2 つ以上選ぶと、差分を比較します",
     en: "Check 2 or more roles to compare their differences",
   },
+  "guide.example": {
+    ja: "例",
+    en: "example",
+  },
   "guide.bullet3": {
     ja: "検索やチップの操作はすべて URL に載るので、そのまま共有できます",
     en: "Search and selections are encoded in the URL, so you can share the link as-is",
@@ -226,15 +230,6 @@ const MESSAGES = {
   "guide.examplePermission": {
     ja: "パーミッションから逆引きする",
     en: "Reverse-lookup from a permission",
-  },
-  "guide.stageMeaning": { ja: "ステージ表示", en: "Stage markers" },
-  "guide.stageDeprecated": {
-    ja: "非推奨。将来削除される可能性がある",
-    en: "Deprecated; may be removed in the future",
-  },
-  "guide.stageBeta": {
-    ja: "ベータ。仕様が変わる可能性がある",
-    en: "Beta; the definition may still change",
   },
 
   // PermGroupList
