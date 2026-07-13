@@ -1,4 +1,4 @@
-import { Languages, Settings } from "lucide-react";
+import { Check, Languages, Settings } from "lucide-react";
 import type { SVGProps } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -6,6 +6,8 @@ import type { Dataset } from "../lib/data";
 import { useLang, useT } from "../lib/i18n";
 import { LANGS } from "../lib/i18n-data";
 import { usePinnedRoles, usePinnedServices } from "../lib/pinned";
+import { useTheme } from "../lib/theme";
+import { THEMES } from "../lib/theme-data";
 import type { ExplorerState } from "../lib/url-state";
 import { Omnibox } from "./Omnibox";
 import { EntityChip } from "./primitives";
@@ -71,6 +73,7 @@ function SelectionTray({ state }: { state: ExplorerState }) {
 
 function SettingsMenu() {
   const t = useT();
+  const { theme, setTheme } = useTheme();
   const { reset: resetPinnedServices, isDefault: servicesIsDefault } =
     usePinnedServices();
   const { reset: resetPinnedRoles, isDefault: rolesIsDefault } =
@@ -101,6 +104,31 @@ function SettingsMenu() {
       </button>
       {open && (
         <div className="absolute top-full right-0 z-30 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+          <div className="px-3 pt-1 pb-1.5 text-xs text-gray-400 dark:text-gray-500">
+            {t("header.theme")}
+          </div>
+          {THEMES.map((th) => (
+            <button
+              key={th}
+              type="button"
+              onClick={() => {
+                setTheme(th);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center gap-2 py-1.5 pr-3 pl-6 text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                th === theme
+                  ? "font-medium text-gray-900 dark:text-gray-100"
+                  : "text-gray-700 dark:text-gray-200"
+              }`}
+            >
+              <Check
+                size={14}
+                className={th === theme ? "opacity-100" : "opacity-0"}
+              />
+              {t(`theme.${th}`)}
+            </button>
+          ))}
+          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
             type="button"
             disabled={isDefault}

@@ -50,6 +50,10 @@ const MESSAGES = {
     ja: "ピン留めをリセット",
     en: "Reset pins",
   },
+  "header.theme": { ja: "テーマ", en: "Theme" },
+  "theme.system": { ja: "システム", en: "System" },
+  "theme.light": { ja: "ライト", en: "Light" },
+  "theme.dark": { ja: "ダーク", en: "Dark" },
   "header.searchLabel": {
     ja: "ロール・パーミッション検索",
     en: "Search roles & permissions",

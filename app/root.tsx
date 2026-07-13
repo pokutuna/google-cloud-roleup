@@ -9,7 +9,19 @@ import {
 
 import type { Route } from "./+types/root";
 import { LangProvider, useT } from "./lib/i18n";
+import { ThemeProvider } from "./lib/theme";
 import "./app.css";
+
+/** Runs before hydration so the correct theme applies with no flash. */
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var t = localStorage.getItem("roleup.theme");
+    var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+  } catch (e) {}
+})();
+`;
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -34,6 +46,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="theme-color" content="#ffffff" />
         <Meta />
         <Links />
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: static, no user input */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}
@@ -46,17 +60,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <LangProvider>
-      <Outlet />
-    </LangProvider>
+    <ThemeProvider>
+      <LangProvider>
+        <Outlet />
+      </LangProvider>
+    </ThemeProvider>
   );
 }
 
 export function HydrateFallback() {
   return (
-    <LangProvider>
-      <HydrateFallbackContent />
-    </LangProvider>
+    <ThemeProvider>
+      <LangProvider>
+        <HydrateFallbackContent />
+      </LangProvider>
+    </ThemeProvider>
   );
 }
 

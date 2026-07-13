@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Theme is user-selectable (System/Light/Dark); .dark on <html> drives dark:
+   variants instead of prefers-color-scheme alone. See app/lib/theme.tsx. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans:
     "Google Sans", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif,
@@ -11,8 +15,8 @@
 html,
 body {
   @apply bg-white dark:bg-gray-950;
+}
 
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+html.dark {
+  color-scheme: dark;
 }
