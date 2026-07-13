@@ -1,5 +1,5 @@
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   type Dataset,
   isServiceAgent,
@@ -9,11 +9,9 @@ import {
 } from "../lib/data";
 import { useT } from "../lib/i18n";
 import { rolesWithPermission } from "../lib/search";
-import type { ExplorerState } from "../lib/url-state";
+import type { ExplorerState, SortKey } from "../lib/url-state";
 import { MAX_COMPARE_ROLES } from "./colors";
 import { MonoName, StageTag } from "./primitives";
-
-type SortKey = "count-asc" | "count-desc" | "name";
 
 function sortRoleIdxs(ds: Dataset, idxs: number[], sort: SortKey): number[] {
   const sorted = [...idxs];
@@ -97,7 +95,7 @@ export function ReversePane({
   const name = ds.permissions[permId];
   const meta = ds.permMeta[permId];
   const parts = permParts(name);
-  const [sort, setSort] = useState<SortKey>("count-asc");
+  const { sort, setSort } = state;
 
   const hasRoleSelected = state.selection.some((it) => it.type === "r");
 

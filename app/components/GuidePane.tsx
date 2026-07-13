@@ -73,7 +73,7 @@ export function GuidePane({ state }: { state: ExplorerState }) {
                   {t("guide.example")}
                   {": "}
                   <Link
-                    to={`/?sel=${DETAIL_EXAMPLE_SEL}`}
+                    to={`/?i=${DETAIL_EXAMPLE_SEL}`}
                     className="font-mono text-xs text-purple-600 hover:underline dark:text-purple-400"
                   >
                     roles/bigquery.user
@@ -88,7 +88,7 @@ export function GuidePane({ state }: { state: ExplorerState }) {
                   {t("guide.example")}
                   {": "}
                   <Link
-                    to={`/?sel=${COMPARE_EXAMPLE_SEL}`}
+                    to={`/?i=${COMPARE_EXAMPLE_SEL}`}
                     className="font-mono text-xs text-purple-600 hover:underline dark:text-purple-400"
                   >
                     roles/bigquery.{"{"}dataOwner,dataEditor,dataViewer{"}"}

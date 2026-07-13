@@ -15,7 +15,7 @@ React Router v8, React 19, TypeScript, Tailwind CSS v4, Vite, Biome
 - **SPA mode**: `ssr: false` in `react-router.config.ts`; single page (`app/routes/home.tsx`), no page transitions
 - **GitHub Pages**: Base path auto-detected from repository name via `GITHUB_REPOSITORY` environment variable
 - **Static data**: `public/data/roleup.json` is generated from IAM APIs by `scripts/generate-data.ts` and committed; the app is read-only
-- **URL as state**: search query (`?q=`) and selection (`?sel=`) are the only state sources; see `app/lib/url-state.ts`
+- **URL as state**: search query (`?q=`) and selection (`?i=`) are the only state sources; see `app/lib/url-state.ts`
 
 ## Key Files
 

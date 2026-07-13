@@ -24,11 +24,9 @@ import {
   parseQuery,
   stripPermQualifiers,
 } from "../lib/search";
-import type { ExplorerState } from "../lib/url-state";
+import type { CompareSortMode, ExplorerState } from "../lib/url-state";
 import { COMMON_SECTION, seriesColor } from "./colors";
 import { MonoName, PermFilterNotice, StageTag } from "./primitives";
-
-type SortMode = "diff" | "name";
 
 /** Wide enough to read typical "service.resource.verb" permission names. */
 const PERM_COL_DEFAULT_WIDTH = 320;
@@ -242,32 +240,19 @@ function SparkPie({ ratio }: { ratio: number }) {
 }
 
 interface MatrixState {
-  showCommon: boolean;
-  showUnheld: boolean;
   collapsed: Set<string>;
-  sortMode: SortMode;
-  reversed: boolean;
   permW: number;
   roleW: number;
 }
 
 type MatrixAction =
-  | { type: "setShowCommon"; value: boolean }
-  | { type: "setShowUnheld"; value: boolean }
   | { type: "toggleCollapsed"; key: string }
-  | { type: "setSortMode"; value: SortMode }
-  | { type: "toggleReversed" }
   | { type: "setColumnWidth"; column: "perm" | "role"; value: number }
-  | { type: "resetForRoleCount"; sortMode: SortMode }
   | { type: "resetRoleWidth"; value: number };
 
-function createMatrixState(n: number, roleW: number): MatrixState {
+function createMatrixState(roleW: number): MatrixState {
   return {
-    showCommon: true,
-    showUnheld: false,
     collapsed: new Set(),
-    sortMode: n === 2 ? "diff" : "name",
-    reversed: false,
     permW: PERM_COL_DEFAULT_WIDTH,
     roleW,
   };
@@ -275,26 +260,16 @@ function createMatrixState(n: number, roleW: number): MatrixState {
 
 function matrixReducer(state: MatrixState, action: MatrixAction): MatrixState {
   switch (action.type) {
-    case "setShowCommon":
-      return { ...state, showCommon: action.value };
-    case "setShowUnheld":
-      return { ...state, showUnheld: action.value };
     case "toggleCollapsed": {
       const collapsed = new Set(state.collapsed);
       if (collapsed.has(action.key)) collapsed.delete(action.key);
       else collapsed.add(action.key);
       return { ...state, collapsed };
     }
-    case "setSortMode":
-      return { ...state, sortMode: action.value };
-    case "toggleReversed":
-      return { ...state, reversed: !state.reversed };
     case "setColumnWidth":
       return action.column === "perm"
         ? { ...state, permW: action.value }
         : { ...state, roleW: action.value };
-    case "resetForRoleCount":
-      return { ...state, sortMode: action.sortMode };
     case "resetRoleWidth":
       return { ...state, roleW: action.value };
   }
@@ -337,28 +312,17 @@ function MatrixView({
 
   const [matrix, dispatch] = useReducer(
     matrixReducer,
-    { n, roleW: defaultRoleW },
-    ({ n: initialN, roleW: initialRoleW }) =>
-      createMatrixState(initialN, initialRoleW),
+    defaultRoleW,
+    createMatrixState,
   );
-  useEffect(() => {
-    dispatch({
-      type: "resetForRoleCount",
-      sortMode: n === 2 ? "diff" : "name",
-    });
-  }, [n]);
   useEffect(() => {
     dispatch({ type: "resetRoleWidth", value: defaultRoleW });
   }, [defaultRoleW]);
-  const {
-    showCommon,
-    showUnheld,
-    collapsed,
-    sortMode,
-    reversed,
-    permW,
-    roleW,
-  } = matrix;
+  const { collapsed, permW, roleW } = matrix;
+  const sortMode = state.cmpSort ?? (n === 2 ? "diff" : "name");
+  const reversed = state.cmpReversed;
+  const showCommon = state.cmpShowCommon;
+  const showUnheld = state.cmpShowUnheld;
   const colDrag = useRef<{ x: number; w: number; col: "perm" | "role" } | null>(
     null,
   );
@@ -563,10 +527,10 @@ function MatrixView({
         showUnheld={showUnheld}
         sortMode={sortMode}
         totalRows={totalRows}
-        onSetSortMode={(value) => dispatch({ type: "setSortMode", value })}
-        onToggleReversed={() => dispatch({ type: "toggleReversed" })}
-        onSetShowCommon={(value) => dispatch({ type: "setShowCommon", value })}
-        onSetShowUnheld={(value) => dispatch({ type: "setShowUnheld", value })}
+        onSetSortMode={state.setCmpSort}
+        onToggleReversed={() => state.setCmpReversed(!reversed)}
+        onSetShowCommon={state.setCmpShowCommon}
+        onSetShowUnheld={state.setCmpShowUnheld}
       />
       <MatrixTable
         ds={ds}
@@ -608,9 +572,9 @@ function MatrixToolbar({
   reversed: boolean;
   showCommon: boolean;
   showUnheld: boolean;
-  sortMode: SortMode;
+  sortMode: CompareSortMode;
   totalRows: number;
-  onSetSortMode: (value: SortMode) => void;
+  onSetSortMode: (value: CompareSortMode) => void;
   onToggleReversed: () => void;
   onSetShowCommon: (value: boolean) => void;
   onSetShowUnheld: (value: boolean) => void;
@@ -936,7 +900,7 @@ function MatrixTable({
   groups: MatrixGroup[];
   diffSections: DiffSection[];
   masks: Map<number, number>;
-  sortMode: SortMode;
+  sortMode: CompareSortMode;
   reversed: boolean;
   permW: number;
   roleW: number;
