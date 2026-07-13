@@ -24,7 +24,7 @@ import {
   parseQuery,
   stripPermQualifiers,
 } from "../lib/search";
-import type { CompareSortMode, ExplorerState } from "../lib/url-state";
+import type { CompareSortMode, ExplorerState, SelItem } from "../lib/url-state";
 import { COMMON_SECTION, seriesColor } from "./colors";
 import { MonoName, PermFilterNotice, StageTag } from "./primitives";
 
@@ -1042,6 +1042,17 @@ export function ComparePane({
     [ds, masks, parsed],
   );
 
+  // Removing a role via the chip's × changes the role count, and when the
+  // user hasn't explicitly chosen a sort mode, its default depends on that
+  // count (n===2 -> "diff", otherwise "name"). Pin the currently-effective
+  // mode before removing so the view doesn't appear to reset.
+  const effectiveSortMode =
+    state.cmpSort ?? (roleIndexes.length === 2 ? "diff" : "name");
+  const removeRole = (item: SelItem) => {
+    if (state.cmpSort === undefined) state.setCmpSort(effectiveSortMode);
+    state.remove(item);
+  };
+
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
@@ -1063,7 +1074,7 @@ export function ComparePane({
                   <button
                     type="button"
                     onClick={() =>
-                      state.remove({
+                      removeRole({
                         type: "r",
                         name: shortRoleName(role.name),
                       })

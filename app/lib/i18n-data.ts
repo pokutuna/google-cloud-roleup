@@ -37,8 +37,8 @@ const MESSAGES = {
   "legend.afterService": { ja: "の下に", en: "contains" },
   "legend.afterRole": { ja: "があり、その中身は", en: ", each a set of" },
   "legend.tail": {
-    ja: "の集合です。チップをクリックすると検索構文が入力されます。",
-    en: ". Click a chip to insert its search qualifier.",
+    ja: "の集合です。",
+    en: ".",
   },
   "header.deselectAll": { ja: "すべて解除", en: "Deselect all" },
   "header.dataStats": {
