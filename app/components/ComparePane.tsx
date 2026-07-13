@@ -197,7 +197,7 @@ function DotRow({
         ) : (
           <span
             key={i}
-            className="size-2 shrink-0 rounded-full border border-gray-300 dark:border-gray-600"
+            className={`size-2 shrink-0 rounded-full border border-current ${seriesColor(i).text}`}
           />
         );
       })}
