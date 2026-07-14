@@ -29,6 +29,37 @@ export function Omnibox({ ds, state }: { ds: Dataset; state: ExplorerState }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // "/" focuses the search from anywhere on the page, like many web apps.
+  // Ignore it when a text field already has focus (including this input, so a
+  // typed "/" lands as a literal character) or when a modifier / IME is active,
+  // so it never blocks normal typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.key !== "/" ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        e.isComposing
+      ) {
+        return;
+      }
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLSelectElement ||
+        (el instanceof HTMLElement && el.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      inputRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   // The input owns its text locally so every keystroke renders synchronously
   // with browser-default editing behavior; state.setQ routes through a router
   // navigation that re-renders the whole app, so the query is only committed

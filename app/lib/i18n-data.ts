@@ -67,8 +67,8 @@ const MESSAGES = {
 
   // Omnibox
   "omnibox.placeholder": {
-    ja: "検索: s:bigquery p:tables.getData owner ... (s:=サービス r:=ロール p:=パーミッション)",
-    en: "Search: s:bigquery p:tables.getData owner ... (s:=service r:=role p:=permission)",
+    ja: "/ で検索: s:bigquery p:tables.getData owner ... (部分一致)",
+    en: "Press / to search: s:bigquery p:tables.getData owner ... (partial match)",
   },
   "omnibox.groupService": { ja: "サービス", en: "Services" },
   "omnibox.groupRole": { ja: "ロール", en: "Roles" },
