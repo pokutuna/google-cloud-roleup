@@ -24,21 +24,21 @@ const SINGLE_EXAMPLES: {
   descKey: MsgKey;
 }[] = [
   {
-    q: "s:bigquery ",
+    q: "s:ai ",
     kind: "s",
-    label: "bigquery",
+    label: "ai",
     descKey: "guide.exampleService",
   },
   {
-    q: "r:bigquery.user ",
+    q: "r:bigquery ",
     kind: "r",
-    label: "bigquery.user",
+    label: "bigquery",
     descKey: "guide.exampleRole",
   },
   {
-    q: "p:tables.getData ",
+    q: "p:storage.objects.get ",
     kind: "p",
-    label: "tables.getData",
+    label: "storage.objects.get",
     descKey: "guide.examplePermission",
   },
 ];
@@ -114,7 +114,20 @@ export function GuidePane({ state }: { state: ExplorerState }) {
                 <span className="text-gray-400">{t(ex.descKey)}</span>
               </li>
             ))}
+            <li className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => state.setQ("invoker ")}
+                className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-medium text-gray-600 hover:underline dark:bg-gray-700 dark:text-gray-300"
+              >
+                invoker
+              </button>
+              <span className="text-gray-400">{t("guide.exampleFree")}</span>
+            </li>
           </ul>
+          <p className="mt-2 text-xs text-gray-400">
+            {t("guide.partialMatchNote")}
+          </p>
         </div>
       </div>
     </div>

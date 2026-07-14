@@ -204,36 +204,44 @@ const MESSAGES = {
 
   // GuidePane
   "guide.bullet1": {
-    ja: "左のロールをクリックすると、詳細と関連ロールを表示します",
+    ja: "左のロールを選択すると、詳細と関連ロールを表示します",
     en: "Click a role on the left to see details and related roles",
   },
   "guide.bullet2": {
-    ja: "チェックボックスで 2 つ以上選ぶと、差分を比較します",
-    en: "Check 2 or more roles to compare their differences",
+    ja: "2 つ以上のロールを選択すると、権限をならべて比較します",
+    en: "Check 2 or more roles to compare their permissions side by side",
   },
   "guide.example": {
     ja: "例",
     en: "example",
   },
   "guide.bullet3": {
-    ja: "検索やチップの操作はすべて URL に載るので、そのまま共有できます",
+    ja: "検索への入力などは URL に含まれるのでそのまま共有できます",
     en: "Search and selections are encoded in the URL, so you can share the link as-is",
   },
   "guide.searchExamples": {
-    ja: "検索の例 (クリックで入力)",
-    en: "Search examples (click to try)",
+    ja: "検索構文の例 (クリックで試す)",
+    en: "Search syntax examples (click to try)",
   },
   "guide.exampleService": {
     ja: "サービスでロールを絞り込む",
     en: "Filter roles by service",
   },
   "guide.exampleRole": {
-    ja: "ロールを名前で探す",
-    en: "Find a role by name",
+    ja: "ロールを名前の一部で探す",
+    en: "Find roles by partial name",
   },
   "guide.examplePermission": {
-    ja: "パーミッションから逆引きする",
-    en: "Reverse-lookup from a permission",
+    ja: "この権限を持つロールを絞り込む",
+    en: "Filter to roles that grant this permission",
+  },
+  "guide.exampleFree": {
+    ja: "修飾子なしで横断検索する",
+    en: "Search across everything without a qualifier",
+  },
+  "guide.partialMatchNote": {
+    ja: "いずれも入力した文字を含むものにマッチします",
+    en: "All of these match anything containing the text you type",
   },
 
   // PermGroupList
