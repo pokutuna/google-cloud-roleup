@@ -1,5 +1,5 @@
-import { Check, Link2, X } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, Link2, X } from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useT } from "../lib/i18n";
 import { ENTITY } from "./colors";
@@ -11,6 +11,80 @@ import { ENTITY } from "./colors";
  */
 export const HIGHLIGHT_ROW =
   "bg-amber-100 dark:bg-amber-900/40 ring-1 ring-inset ring-amber-400 dark:ring-amber-600";
+
+/**
+ * Row-inline copy button: swaps to a check for a moment once the write lands.
+ * `getText` runs on click so callers can build the payload lazily, and may
+ * apply side effects (see CopyLinkButton syncing the URL).
+ */
+function CopyButton({
+  getText,
+  icon,
+  label,
+  labelCopied,
+  className,
+}: {
+  getText: () => string;
+  icon: ReactNode;
+  label: string;
+  labelCopied: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async (e: React.MouseEvent) => {
+    // rows are clickable (reverse lookup / collapse) — this button is not that
+    e.preventDefault();
+    e.stopPropagation();
+    const text = getText();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard denied (insecure context / permission): leave the icon as-is
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? labelCopied : label}
+      aria-label={copied ? labelCopied : label}
+      className={`shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 cursor-pointer dark:hover:bg-gray-700 dark:hover:text-gray-200 ${className ?? ""}`}
+    >
+      {copied ? (
+        <Check size={12} className="inline-block text-green-600" />
+      ) : (
+        icon
+      )}
+    </button>
+  );
+}
+
+/**
+ * Copies `target` itself — the bare permission or group name, for pasting
+ * into an IAM policy or a search box. Sits left of CopyLinkButton.
+ */
+export function CopyNameButton({
+  target,
+  className,
+}: {
+  target: string;
+  className?: string;
+}) {
+  const t = useT();
+  return (
+    <CopyButton
+      getText={() => target}
+      icon={<Copy size={12} className="inline-block" />}
+      label={t("link.copyName")}
+      labelCopied={t("link.nameCopied")}
+      className={className}
+    />
+  );
+}
 
 /**
  * Copies a deep link to the current view with ?hl= pointing at `target`.
@@ -26,12 +100,8 @@ export function CopyLinkButton({
 }) {
   const t = useT();
   const [params, setParams] = useSearchParams();
-  const [copied, setCopied] = useState(false);
 
-  const copy = async (e: React.MouseEvent) => {
-    // rows are clickable (reverse lookup / collapse) — this button is not that
-    e.preventDefault();
-    e.stopPropagation();
+  const linkFor = () => {
     const next = new URLSearchParams(params);
     next.set("hl", target);
     const url = new URL(window.location.href);
@@ -39,29 +109,17 @@ export function CopyLinkButton({
     // the address bar follows what was copied, so the link is verifiable and
     // the row highlights right away. replace: copying is not a navigation.
     setParams(next, { replace: true, preventScrollReset: true });
-    try {
-      await navigator.clipboard.writeText(url.toString());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clipboard denied (insecure context / permission): leave the icon as-is
-    }
+    return url.toString();
   };
 
   return (
-    <button
-      type="button"
-      onClick={copy}
-      title={copied ? t("link.copied") : t("link.copy")}
-      aria-label={copied ? t("link.copied") : t("link.copy")}
-      className={`shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 cursor-pointer dark:hover:bg-gray-700 dark:hover:text-gray-200 ${className ?? ""}`}
-    >
-      {copied ? (
-        <Check size={12} className="inline-block text-green-600" />
-      ) : (
-        <Link2 size={12} className="inline-block" />
-      )}
-    </button>
+    <CopyButton
+      getText={linkFor}
+      icon={<Link2 size={12} className="inline-block" />}
+      label={t("link.copy")}
+      labelCopied={t("link.copied")}
+      className={className}
+    />
   );
 }
 

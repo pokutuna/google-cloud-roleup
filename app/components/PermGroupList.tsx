@@ -15,7 +15,12 @@ import {
   findHighlightRow,
   type GroupRow,
 } from "./perm-group-list-utils";
-import { CopyLinkButton, HIGHLIGHT_ROW, StageTag } from "./primitives";
+import {
+  CopyLinkButton,
+  CopyNameButton,
+  HIGHLIGHT_ROW,
+  StageTag,
+} from "./primitives";
 
 /** Threshold above which the list defaults to collapsed-by-resource. */
 const AUTO_COLLAPSE_THRESHOLD = 200;
@@ -58,6 +63,10 @@ function GroupRowView({
         </span>
         <span className="text-gray-400">{row.permIds.length}</span>
       </button>
+      <CopyNameButton
+        target={`${row.key}.*`}
+        className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+      />
       <CopyLinkButton
         target={`${row.key}.*`}
         className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
@@ -109,6 +118,10 @@ function FlatRowView({
           )}
         </span>
       </button>
+      <CopyNameButton
+        target={row.name}
+        className="self-center opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+      />
       <CopyLinkButton
         target={row.name}
         className="self-center opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"

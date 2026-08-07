@@ -37,6 +37,7 @@ import { COMMON_SECTION, seriesColor } from "./colors";
 import { isKeyOpen, toggledCollapsed } from "./compare-pane-utils";
 import {
   CopyLinkButton,
+  CopyNameButton,
   HIGHLIGHT_ROW,
   HighlightNotice,
   MonoName,
@@ -809,6 +810,10 @@ function MatrixGroupRows({
             <span className="shrink-0 text-[10px] text-gray-400">
               {group.permIds.length}
             </span>
+            <CopyNameButton
+              target={`${group.key}.*`}
+              className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            />
             <CopyLinkButton
               target={`${group.key}.*`}
               className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
@@ -888,6 +893,10 @@ function MatrixGroupRows({
                       </span>
                     )}
                   </button>
+                  <CopyNameButton
+                    target={name}
+                    className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  />
                   <CopyLinkButton
                     target={name}
                     className="mr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"

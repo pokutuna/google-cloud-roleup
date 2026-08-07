@@ -270,6 +270,11 @@ const MESSAGES = {
     en: "Copy a link to this entry",
   },
   "link.copied": { ja: "リンクをコピーしました", en: "Link copied" },
+  "link.copyName": {
+    ja: "名前をコピー",
+    en: "Copy the name",
+  },
+  "link.nameCopied": { ja: "名前をコピーしました", en: "Name copied" },
   "link.clearHighlight": {
     ja: "ハイライトを解除",
     en: "Clear highlight",
