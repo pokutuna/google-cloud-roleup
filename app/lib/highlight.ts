@@ -66,3 +66,22 @@ export function isPermHighlighted(
   if (hl.permId !== undefined) return hl.permId === permId;
   return permParts(ds.permissions[permId]).group === hl.groupKey;
 }
+
+/**
+ * How strongly a permission row should read. A group target sweeps in every
+ * member, so those render "weak" and the group header carries the emphasis;
+ * a permission target names exactly one row, which renders "strong".
+ */
+export type HighlightStrength = "none" | "weak" | "strong";
+
+export function permHighlightStrength(
+  ds: Dataset,
+  hl: ResolvedHighlight | null | undefined,
+  permId: number,
+): HighlightStrength {
+  if (!hl) return "none";
+  if (hl.permId !== undefined) return hl.permId === permId ? "strong" : "none";
+  return permParts(ds.permissions[permId]).group === hl.groupKey
+    ? "weak"
+    : "none";
+}

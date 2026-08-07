@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isGroupHighlighted,
   isPermHighlighted,
+  permHighlightStrength,
   resolveHighlight,
 } from "./highlight";
 import { buildFixtureDataset } from "./test/fixture";
@@ -91,5 +92,28 @@ describe("isGroupHighlighted", () => {
   it("is false without a highlight", () => {
     expect(isGroupHighlighted(null, "bigquery.tables")).toBe(false);
     expect(isGroupHighlighted(undefined, "bigquery.tables")).toBe(false);
+  });
+});
+
+describe("permHighlightStrength", () => {
+  it("marks a named permission strong and leaves its siblings alone", () => {
+    const hl = resolveHighlight(ds, "bigquery.tables.getData");
+    // 3 is getData; 2 and 4 share the group but were not the target
+    expect(permHighlightStrength(ds, hl, 3)).toBe("strong");
+    expect(permHighlightStrength(ds, hl, 2)).toBe("none");
+    expect(permHighlightStrength(ds, hl, 4)).toBe("none");
+  });
+
+  it("marks every member of a group target weak, so the header carries it", () => {
+    const hl = resolveHighlight(ds, "bigquery.tables.*");
+    expect(permHighlightStrength(ds, hl, 2)).toBe("weak");
+    expect(permHighlightStrength(ds, hl, 3)).toBe("weak");
+    expect(permHighlightStrength(ds, hl, 4)).toBe("weak");
+    expect(permHighlightStrength(ds, hl, 0)).toBe("none");
+  });
+
+  it("is none without a highlight", () => {
+    expect(permHighlightStrength(ds, null, 3)).toBe("none");
+    expect(permHighlightStrength(ds, undefined, 3)).toBe("none");
   });
 });

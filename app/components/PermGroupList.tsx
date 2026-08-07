@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { type Dataset, permParts } from "../lib/data";
 import {
+  type HighlightStrength,
   isGroupHighlighted,
-  isPermHighlighted,
+  permHighlightStrength,
   type ResolvedHighlight,
 } from "../lib/highlight";
 import { useT } from "../lib/i18n";
@@ -19,6 +20,7 @@ import {
   CopyLinkButton,
   CopyNameButton,
   HIGHLIGHT_ROW,
+  HIGHLIGHT_ROW_MEMBER,
   StageTag,
 } from "./primitives";
 
@@ -83,18 +85,22 @@ function FlatRowView({
 }: {
   ds: Dataset;
   row: FlatRow;
-  highlighted: boolean;
+  highlighted: HighlightStrength;
   onSelectPerm: (permName: string) => void;
 }) {
   const meta = ds.permMeta[row.id];
   const parts = permParts(row.name);
   const hasResource = parts.resource.length > 0;
+  const tint =
+    highlighted === "strong"
+      ? HIGHLIGHT_ROW
+      : highlighted === "weak"
+        ? HIGHLIGHT_ROW_MEMBER
+        : "";
 
   return (
     <div
-      className={`group flex w-full items-baseline gap-1.5 border-b border-gray-50 pr-2 text-sm hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/40 ${
-        highlighted ? HIGHLIGHT_ROW : ""
-      }`}
+      className={`group flex w-full items-baseline gap-1.5 border-b border-gray-50 pr-2 text-sm hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/40 ${tint}`}
     >
       <button
         type="button"
@@ -256,7 +262,7 @@ export function PermGroupList({
             <FlatRowView
               ds={ds}
               row={row}
-              highlighted={isPermHighlighted(ds, highlight ?? null, row.id)}
+              highlighted={permHighlightStrength(ds, highlight, row.id)}
               onSelectPerm={onSelectPerm}
             />
           );

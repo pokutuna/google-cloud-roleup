@@ -13,6 +13,13 @@ export const HIGHLIGHT_ROW =
   "bg-amber-100 dark:bg-amber-900/40 ring-1 ring-inset ring-amber-400 dark:ring-amber-600";
 
 /**
+ * Weaker tint for rows that are only swept in by a group target
+ * ("service.group.*"). The named row keeps HIGHLIGHT_ROW, so the thing the
+ * link actually points at stays the one that stands out.
+ */
+export const HIGHLIGHT_ROW_MEMBER = "bg-amber-50 dark:bg-amber-900/20";
+
+/**
  * Row-inline copy button: swaps to a check for a moment once the write lands.
  * `getText` runs on click so callers can build the payload lazily, and may
  * apply side effects (see CopyLinkButton syncing the URL).

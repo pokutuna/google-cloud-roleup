@@ -20,6 +20,7 @@ import { type Dataset, permParts, shortRoleName } from "../lib/data";
 import {
   isGroupHighlighted,
   isPermHighlighted,
+  permHighlightStrength,
   type ResolvedHighlight,
   resolveHighlight,
 } from "../lib/highlight";
@@ -39,6 +40,7 @@ import {
   CopyLinkButton,
   CopyNameButton,
   HIGHLIGHT_ROW,
+  HIGHLIGHT_ROW_MEMBER,
   HighlightNotice,
   MonoName,
   PermFilterNotice,
@@ -853,25 +855,32 @@ function MatrixGroupRows({
         group.permIds.map((id) => {
           const name = ds.permissions[id];
           const mask = masks.get(id) ?? 0;
-          const permHighlighted = isPermHighlighted(ds, highlight, id);
-          const anchorPermRow =
-            permHighlighted && highlight?.permId !== undefined;
+          const strength = permHighlightStrength(ds, highlight, id);
+          const anchorPermRow = strength === "strong";
+          // the sticky column paints its own background, so it has to repeat
+          // whichever tint the row is wearing or the amber stops at the scroll
+          const rowTint =
+            strength === "strong"
+              ? HIGHLIGHT_ROW
+              : strength === "weak"
+                ? HIGHLIGHT_ROW_MEMBER
+                : "";
+          const stickyTint =
+            strength === "strong"
+              ? "bg-amber-100 dark:bg-amber-900/40"
+              : strength === "weak"
+                ? "bg-amber-50 dark:bg-amber-900/20"
+                : "bg-white dark:bg-gray-950";
           return (
             <tr
               key={id}
               ref={
                 anchorPermRow ? (el) => registerHighlightRow(el, 0) : undefined
               }
-              className={`group border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30 ${
-                permHighlighted ? HIGHLIGHT_ROW : ""
-              }`}
+              className={`group border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30 ${rowTint}`}
             >
               <td
-                className={`sticky left-0 z-10 border-r border-gray-200 dark:border-gray-800 ${
-                  permHighlighted
-                    ? "bg-amber-100 dark:bg-amber-900/40"
-                    : "bg-white dark:bg-gray-950"
-                }`}
+                className={`sticky left-0 z-10 border-r border-gray-200 dark:border-gray-800 ${stickyTint}`}
               >
                 <span className="flex items-center">
                   <button
