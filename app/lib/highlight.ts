@@ -43,6 +43,19 @@ export function resolveHighlight(
   return null;
 }
 
+/**
+ * Whether a group header row is itself the target. Only the group form tints
+ * the header: "service.group.action" asks for one permission, so `groupKey`
+ * there merely says which group to unfold to reveal it.
+ */
+export function isGroupHighlighted(
+  hl: ResolvedHighlight | null | undefined,
+  groupKey: string,
+): boolean {
+  if (!hl || hl.permId !== undefined) return false;
+  return hl.groupKey === groupKey;
+}
+
 /** Whether a permission id falls under the highlight (exact or by group). */
 export function isPermHighlighted(
   ds: Dataset,

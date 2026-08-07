@@ -2,7 +2,11 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { type Dataset, permParts } from "../lib/data";
-import { isPermHighlighted, type ResolvedHighlight } from "../lib/highlight";
+import {
+  isGroupHighlighted,
+  isPermHighlighted,
+  type ResolvedHighlight,
+} from "../lib/highlight";
 import { useT } from "../lib/i18n";
 import {
   allResourceKeys,
@@ -148,16 +152,22 @@ export function PermGroupList({
   );
 
   // permIds or the highlight changed: reset collapse state back to the default
-  // (render-time reset, no effect needed — mirrors RoleList's prevQ ref pattern)
+  // (render-time reset, no effect needed — mirrors RoleList's prevQ ref pattern).
+  // A highlight whose group is already unfolded needs no reset — that is the
+  // copy-link button pointing ?hl= at a row the user is looking at, and
+  // re-collapsing the list under the click would lose their manual expansions.
   const prevPermIds = useRef(permIds);
   const prevHighlight = useRef(highlight?.raw);
+  const highlightShown = highlight ? !collapsed.has(highlight.groupKey) : false;
   if (
     prevPermIds.current !== permIds ||
-    prevHighlight.current !== highlight?.raw
+    (prevHighlight.current !== highlight?.raw && !highlightShown)
   ) {
     prevPermIds.current = permIds;
     prevHighlight.current = highlight?.raw;
     setCollapsed(initialCollapsed(permIds));
+  } else if (prevHighlight.current !== highlight?.raw) {
+    prevHighlight.current = highlight?.raw;
   }
 
   const toggle = (key: string) =>
@@ -226,7 +236,7 @@ export function PermGroupList({
           return row.type === "group" ? (
             <GroupRowView
               row={row}
-              highlighted={highlight?.groupKey === row.key}
+              highlighted={isGroupHighlighted(highlight, row.key)}
               onToggle={() => toggle(row.key)}
             />
           ) : (

@@ -18,6 +18,7 @@ import {
 } from "react";
 import { type Dataset, permParts, shortRoleName } from "../lib/data";
 import {
+  isGroupHighlighted,
   isPermHighlighted,
   type ResolvedHighlight,
   resolveHighlight,
@@ -33,6 +34,7 @@ import {
 } from "../lib/search";
 import type { CompareSortMode, ExplorerState, SelItem } from "../lib/url-state";
 import { COMMON_SECTION, seriesColor } from "./colors";
+import { isKeyOpen, toggledCollapsed } from "./compare-pane-utils";
 import {
   CopyLinkButton,
   HIGHLIGHT_ROW,
@@ -262,7 +264,12 @@ interface MatrixState {
 }
 
 type MatrixAction =
-  | { type: "toggleCollapsed"; key: string }
+  | {
+      type: "toggleCollapsed";
+      key: string;
+      open: boolean;
+      defaultOpen: boolean;
+    }
   | { type: "setColumnWidth"; column: "perm" | "role"; value: number }
   | { type: "resetRoleWidth"; value: number }
   | { type: "setForceOpen"; keys: Set<string> };
@@ -279,9 +286,12 @@ function createMatrixState(roleW: number): MatrixState {
 function matrixReducer(state: MatrixState, action: MatrixAction): MatrixState {
   switch (action.type) {
     case "toggleCollapsed": {
-      const collapsed = new Set(state.collapsed);
-      if (collapsed.has(action.key)) collapsed.delete(action.key);
-      else collapsed.add(action.key);
+      const collapsed = toggledCollapsed(
+        state.collapsed,
+        action.key,
+        action.open,
+        action.defaultOpen,
+      );
       // an explicit toggle wins over the highlight's forced expansion, so the
       // user can fold a highlighted group without dropping ?hl= first
       const forceOpen = new Set(state.forceOpen);
@@ -304,11 +314,16 @@ function matrixReducer(state: MatrixState, action: MatrixAction): MatrixState {
  * The two sort modes key their groups differently: "name" uses the bare
  * group key, "diff" nests groups under a holder-mask section, and a group
  * highlight can straddle several sections at once.
+ *
+ * `unheldPermIds` are rendered under the synthetic mask = -1 section in
+ * "diff"; in "name" they are merged into the regular groups, so the bare
+ * group key already covers them there.
  */
 function highlightOpenKeys(
   ds: Dataset,
   hl: ResolvedHighlight | null,
   permIds: number[],
+  unheldPermIds: number[],
   masks: Map<number, number>,
   sortMode: CompareSortMode,
 ): Set<string> {
@@ -318,11 +333,15 @@ function highlightOpenKeys(
     keys.add(hl.groupKey);
     return keys;
   }
-  for (const id of permIds) {
-    if (!isPermHighlighted(ds, hl, id)) continue;
-    const mask = masks.get(id) ?? 0;
+  const add = (id: number, mask: number) => {
     keys.add(`sec:${mask}`);
     keys.add(`${mask}/${permParts(ds.permissions[id]).group}`);
+  };
+  for (const id of permIds) {
+    if (isPermHighlighted(ds, hl, id)) add(id, masks.get(id) ?? 0);
+  }
+  for (const id of unheldPermIds) {
+    if (isPermHighlighted(ds, hl, id)) add(id, -1);
   }
   return keys;
 }
@@ -567,16 +586,23 @@ function MatrixView({
   // default: expand groups when the overall row count is small enough to scan
   const defaultOpen = totalRows <= 60;
   const isOpen = (key: string) =>
-    forceOpen.has(key) || (collapsed.has(key) ? !defaultOpen : defaultOpen);
+    isKeyOpen(collapsed, forceOpen, key, defaultOpen);
+  // sections default to open, so their `collapsed` membership is absolute
   const isSectionOpen = (key: string) =>
-    forceOpen.has(key) || !collapsed.has(key);
-  const toggle = (key: string) => dispatch({ type: "toggleCollapsed", key });
+    isKeyOpen(collapsed, forceOpen, key, true);
+  // `open` is what the caller currently shows; sections are always open by
+  // default, groups follow `defaultOpen`
+  const toggle = (key: string, open: boolean) =>
+    dispatch({ type: "toggleCollapsed", key, open, defaultOpen });
+  const toggleSection = (key: string, open: boolean) =>
+    dispatch({ type: "toggleCollapsed", key, open, defaultOpen: true });
 
   // unfold whatever the ?hl= target lives under. Recomputed when the target or
   // the grouping changes; a manual toggle then clears that key (see reducer).
   const openKeys = useMemo(
-    () => highlightOpenKeys(ds, highlight, permIds, masks, sortMode),
-    [ds, highlight, permIds, masks, sortMode],
+    () =>
+      highlightOpenKeys(ds, highlight, permIds, unheldPermIds, masks, sortMode),
+    [ds, highlight, permIds, unheldPermIds, masks, sortMode],
   );
   useEffect(() => {
     dispatch({ type: "setForceOpen", keys: openKeys });
@@ -613,6 +639,7 @@ function MatrixView({
         isOpen={isOpen}
         isSectionOpen={isSectionOpen}
         toggle={toggle}
+        toggleSection={toggleSection}
         highlight={highlight}
         t={t}
       />
@@ -736,16 +763,19 @@ function MatrixGroupRows({
   group: MatrixGroup;
   collapseKey: string;
   isOpen: (key: string) => boolean;
-  toggle: (key: string) => void;
+  toggle: (key: string, open: boolean) => void;
   highlight: ResolvedHighlight | null;
   registerHighlightRow: (el: HTMLTableRowElement | null, rank: number) => void;
 }) {
   const opened = isOpen(collapseKey);
-  const groupHighlighted = highlight?.groupKey === group.key;
+  // only a group-form ?hl= tints the header; a permission target tints just
+  // its own row, even though it unfolds this group to get there
+  const groupHighlighted = isGroupHighlighted(highlight, group.key);
   // scroll anchor: the exact permission row when the group is open, otherwise
   // the group header standing in for it
   const anchorGroupHeader =
-    groupHighlighted && (!opened || highlight?.permId === undefined);
+    highlight?.groupKey === group.key &&
+    (!opened || highlight?.permId === undefined);
   return (
     <Fragment>
       <tr
@@ -755,7 +785,7 @@ function MatrixGroupRows({
         className={`group cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900 ${
           groupHighlighted ? HIGHLIGHT_ROW : ""
         }`}
-        onClick={() => toggle(collapseKey)}
+        onClick={() => toggle(collapseKey, opened)}
       >
         <td
           className={`sticky left-0 z-10 border-r border-gray-200 px-2 py-1 dark:border-gray-800 ${
@@ -904,6 +934,7 @@ function MatrixSectionRows({
   isGroupOpen,
   isSectionOpen,
   toggle,
+  toggleSection,
   highlight,
   registerHighlightRow,
   t,
@@ -917,7 +948,8 @@ function MatrixSectionRows({
   reversed: boolean;
   isGroupOpen: (key: string) => boolean;
   isSectionOpen: (key: string) => boolean;
-  toggle: (key: string) => void;
+  toggle: (key: string, open: boolean) => void;
+  toggleSection: (key: string, open: boolean) => void;
   highlight: ResolvedHighlight | null;
   registerHighlightRow: (el: HTMLTableRowElement | null, rank: number) => void;
   t: Translate;
@@ -929,7 +961,7 @@ function MatrixSectionRows({
     <Fragment>
       <tr
         className="cursor-pointer border-y border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900"
-        onClick={() => toggle(section.key)}
+        onClick={() => toggleSection(section.key, sectionOpen)}
       >
         <td
           colSpan={roleIndexes.length + 2}
@@ -1007,6 +1039,7 @@ function MatrixTable({
   isOpen,
   isSectionOpen,
   toggle,
+  toggleSection,
   highlight,
   t,
 }: {
@@ -1027,7 +1060,8 @@ function MatrixTable({
   ) => ColumnResizerProps;
   isOpen: (key: string) => boolean;
   isSectionOpen: (key: string) => boolean;
-  toggle: (key: string) => void;
+  toggle: (key: string, open: boolean) => void;
+  toggleSection: (key: string, open: boolean) => void;
   highlight: ResolvedHighlight | null;
   t: Translate;
 }) {
@@ -1105,6 +1139,7 @@ function MatrixTable({
           isGroupOpen={isOpen}
           isSectionOpen={isSectionOpen}
           toggle={toggle}
+          toggleSection={toggleSection}
           highlight={highlight}
           registerHighlightRow={registerHighlightRow}
           t={t}
@@ -1214,12 +1249,28 @@ export function ComparePane({
   );
   // whether the target is anywhere in the compared union, after the s:/p:
   // filter — the matrix's own toggles can still hide it, but this catches the
-  // common "linked from another role" case
+  // common "linked from another role" case. With 未保持 on, the matrix also
+  // renders dataset-wide permissions of any group the union touches, so those
+  // count as visible too.
   const highlightVisible = useMemo(() => {
     if (!highlight) return false;
-    const ids = filterPermIds(ds, [...masks.keys()], parsed);
+    const held = [...masks.keys()];
+    const candidates = [...held];
+    // 未保持 on: the target's whole group is rendered as long as some held
+    // permission touches that group
+    if (
+      state.cmpShowUnheld &&
+      held.some(
+        (id) => permParts(ds.permissions[id]).group === highlight.groupKey,
+      )
+    ) {
+      for (const id of groupToPermIdsMap(ds).get(highlight.groupKey) ?? []) {
+        if (!masks.has(id)) candidates.push(id);
+      }
+    }
+    const ids = filterPermIds(ds, candidates, parsed);
     return ids.some((id) => isPermHighlighted(ds, highlight, id));
-  }, [ds, highlight, masks, parsed]);
+  }, [ds, highlight, masks, parsed, state.cmpShowUnheld]);
 
   // Removing a role via the chip's × changes the role count, and when the
   // user hasn't explicitly chosen a sort mode, its default depends on that

@@ -1,5 +1,6 @@
 import { Check, Link2, X } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { useT } from "../lib/i18n";
 import { ENTITY } from "./colors";
 
@@ -24,14 +25,20 @@ export function CopyLinkButton({
   className?: string;
 }) {
   const t = useT();
+  const [params, setParams] = useSearchParams();
   const [copied, setCopied] = useState(false);
 
   const copy = async (e: React.MouseEvent) => {
     // rows are clickable (reverse lookup / collapse) — this button is not that
     e.preventDefault();
     e.stopPropagation();
+    const next = new URLSearchParams(params);
+    next.set("hl", target);
     const url = new URL(window.location.href);
-    url.searchParams.set("hl", target);
+    url.search = next.toString();
+    // the address bar follows what was copied, so the link is verifiable and
+    // the row highlights right away. replace: copying is not a navigation.
+    setParams(next, { replace: true, preventScrollReset: true });
     try {
       await navigator.clipboard.writeText(url.toString());
       setCopied(true);

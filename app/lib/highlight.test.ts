@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isPermHighlighted, resolveHighlight } from "./highlight";
+import {
+  isGroupHighlighted,
+  isPermHighlighted,
+  resolveHighlight,
+} from "./highlight";
 import { buildFixtureDataset } from "./test/fixture";
 
 const ds = buildFixtureDataset();
@@ -67,5 +71,25 @@ describe("isPermHighlighted", () => {
 
   it("is false when there is no highlight", () => {
     expect(isPermHighlighted(ds, null, 3)).toBe(false);
+  });
+});
+
+describe("isGroupHighlighted", () => {
+  it("tints the header for a group target", () => {
+    const hl = resolveHighlight(ds, "bigquery.tables.*");
+    expect(isGroupHighlighted(hl, "bigquery.tables")).toBe(true);
+    expect(isGroupHighlighted(hl, "bigquery.datasets")).toBe(false);
+  });
+
+  it("leaves the header alone for a permission target", () => {
+    // the group is still unfolded to reveal the row, but only that row tints
+    const hl = resolveHighlight(ds, "bigquery.tables.getData");
+    expect(hl?.groupKey).toBe("bigquery.tables");
+    expect(isGroupHighlighted(hl, "bigquery.tables")).toBe(false);
+  });
+
+  it("is false without a highlight", () => {
+    expect(isGroupHighlighted(null, "bigquery.tables")).toBe(false);
+    expect(isGroupHighlighted(undefined, "bigquery.tables")).toBe(false);
   });
 });
