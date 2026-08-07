@@ -785,8 +785,11 @@ function MatrixGroupRows({
         ref={
           anchorGroupHeader ? (el) => registerHighlightRow(el, 1) : undefined
         }
-        className={`group cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900 ${
-          groupHighlighted ? HIGHLIGHT_ROW : ""
+        // the section tint and the highlight are the same CSS property, so they
+        // are mutually exclusive rather than layered — otherwise source order
+        // decides the winner and the gray silently swallows the amber
+        className={`group cursor-pointer border-b border-gray-100 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900 ${
+          groupHighlighted ? HIGHLIGHT_ROW : "bg-gray-50/60 dark:bg-gray-900/40"
         }`}
         onClick={() => toggle(collapseKey, opened)}
       >
