@@ -39,6 +39,8 @@ import { isKeyOpen, toggledCollapsed } from "./compare-pane-utils";
 import {
   CopyLinkButton,
   CopyNameButton,
+  HIGHLIGHT_BG_MEMBER_STICKY,
+  HIGHLIGHT_BG_STICKY,
   HIGHLIGHT_ROW,
   HIGHLIGHT_ROW_MEMBER,
   HighlightNotice,
@@ -785,19 +787,21 @@ function MatrixGroupRows({
         ref={
           anchorGroupHeader ? (el) => registerHighlightRow(el, 1) : undefined
         }
-        // the section tint and the highlight are the same CSS property, so they
-        // are mutually exclusive rather than layered — otherwise source order
-        // decides the winner and the gray silently swallows the amber
-        className={`group cursor-pointer border-b border-gray-100 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-900 ${
-          groupHighlighted ? HIGHLIGHT_ROW : "bg-gray-50/60 dark:bg-gray-900/40"
+        // section tint, highlight and hover all set background-color, so they
+        // are mutually exclusive rather than layered — otherwise the gray
+        // swallows the amber, and hover (higher specificity) swallows both
+        className={`group cursor-pointer border-b border-gray-100 dark:border-gray-800 ${
+          groupHighlighted
+            ? HIGHLIGHT_ROW
+            : "bg-gray-50/60 hover:bg-gray-100 dark:bg-gray-900/40 dark:hover:bg-gray-900"
         }`}
         onClick={() => toggle(collapseKey, opened)}
       >
         <td
           className={`sticky left-0 z-10 border-r border-gray-200 px-2 py-1 dark:border-gray-800 ${
             groupHighlighted
-              ? "bg-amber-100 dark:bg-amber-900/40"
-              : "bg-gray-50/60 dark:bg-gray-900/40"
+              ? HIGHLIGHT_BG_STICKY
+              : "bg-gray-50/60 group-hover:bg-gray-100 dark:bg-gray-900/40 dark:group-hover:bg-gray-900"
           }`}
         >
           <span className="flex items-center gap-1.5 overflow-hidden">
@@ -861,26 +865,28 @@ function MatrixGroupRows({
           const strength = permHighlightStrength(ds, highlight, id);
           const anchorPermRow = strength === "strong";
           // the sticky column paints its own background, so it has to repeat
-          // whichever tint the row is wearing or the amber stops at the scroll
+          // whichever tint the row is wearing or the amber stops at the scroll.
+          // a highlighted row supplies its own hover shade, since the rose one
+          // would otherwise outrank the tint and erase it under the cursor
           const rowTint =
             strength === "strong"
               ? HIGHLIGHT_ROW
               : strength === "weak"
                 ? HIGHLIGHT_ROW_MEMBER
-                : "";
+                : "hover:bg-rose-50 dark:hover:bg-rose-950/30";
           const stickyTint =
             strength === "strong"
-              ? "bg-amber-100 dark:bg-amber-900/40"
+              ? HIGHLIGHT_BG_STICKY
               : strength === "weak"
-                ? "bg-amber-50 dark:bg-amber-900/20"
-                : "bg-white dark:bg-gray-950";
+                ? HIGHLIGHT_BG_MEMBER_STICKY
+                : "bg-white group-hover:bg-rose-50 dark:bg-gray-950 dark:group-hover:bg-rose-950/30";
           return (
             <tr
               key={id}
               ref={
                 anchorPermRow ? (el) => registerHighlightRow(el, 0) : undefined
               }
-              className={`group border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30 ${rowTint}`}
+              className={`group border-b border-gray-50 dark:border-gray-900 ${rowTint}`}
             >
               <td
                 className={`sticky left-0 z-10 border-r border-gray-200 dark:border-gray-800 ${stickyTint}`}
@@ -1176,7 +1182,10 @@ function MatrixTable({
         style={{ minWidth: permW + roleIndexes.length * roleW }}
       >
         <thead>
-          <tr className="sticky top-0 z-10 bg-white dark:bg-gray-950">
+          {/* above the body rows' own sticky cells (z-10): the permission
+              column's resize knob is centered on the border and so hangs past
+              this row, and a tie would let those cells paint over it */}
+          <tr className="sticky top-0 z-20 bg-white dark:bg-gray-950">
             <th
               className="sticky left-0 z-20 border-r border-b border-gray-200 bg-white px-2 py-1.5 text-left align-bottom dark:border-gray-800 dark:bg-gray-950"
               style={{ width: permW }}

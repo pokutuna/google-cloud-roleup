@@ -39,8 +39,8 @@ function GroupRowView({
   const t = useT();
   return (
     <div
-      className={`group flex w-full items-center gap-1.5 border-t border-gray-100 pr-2 text-[11px] hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900 ${
-        highlighted ? HIGHLIGHT_ROW : ""
+      className={`group flex w-full items-center gap-1.5 border-t border-gray-100 pr-2 text-[11px] dark:border-gray-800 ${
+        highlighted ? HIGHLIGHT_ROW : "hover:bg-gray-50 dark:hover:bg-gray-900"
       }`}
     >
       <button
@@ -91,16 +91,18 @@ function FlatRowView({
   const meta = ds.permMeta[row.id];
   const parts = permParts(row.name);
   const hasResource = parts.resource.length > 0;
+  // a highlighted row brings its own hover shade: the rose one has an extra
+  // pseudo-class and would outrank the tint, erasing it under the cursor
   const tint =
     highlighted === "strong"
       ? HIGHLIGHT_ROW
       : highlighted === "weak"
         ? HIGHLIGHT_ROW_MEMBER
-        : "";
+        : "hover:bg-rose-50 dark:hover:bg-rose-950/40";
 
   return (
     <div
-      className={`group flex w-full items-baseline gap-1.5 border-b border-gray-50 pr-2 text-sm hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/40 ${tint}`}
+      className={`group flex w-full items-baseline gap-1.5 border-b border-gray-50 pr-2 text-sm dark:border-gray-900 ${tint}`}
     >
       <button
         type="button"

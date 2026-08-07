@@ -5,19 +5,42 @@ import { useT } from "../lib/i18n";
 import { ENTITY } from "./colors";
 
 /**
+ * Background of a highlighted row, split out because the sticky first column
+ * paints its own background and has to repeat whatever the row is wearing.
+ *
+ * Each of these carries its own `hover:` variant. A row's own `hover:bg-*`
+ * would otherwise win on specificity — `.hover\:bg-rose-50:hover` is (0,2,0)
+ * against a plain utility's (0,1,0), so source order never comes into it — and
+ * replace the tint outright. Deepening by one step on hover keeps the row
+ * reading as highlighted while still acknowledging the cursor.
+ */
+export const HIGHLIGHT_BG =
+  "bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60";
+export const HIGHLIGHT_BG_MEMBER =
+  "bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40";
+
+/**
+ * Same tints for the sticky column: the cursor sits over the row, not over the
+ * cell, so these track the row's hover through `group-hover:` instead.
+ */
+export const HIGHLIGHT_BG_STICKY =
+  "bg-amber-100 group-hover:bg-amber-200 dark:bg-amber-900/40 dark:group-hover:bg-amber-900/60";
+export const HIGHLIGHT_BG_MEMBER_STICKY =
+  "bg-amber-50 group-hover:bg-amber-100 dark:bg-amber-900/20 dark:group-hover:bg-amber-900/40";
+
+/**
  * Highlight tint for a ?hl= target. Amber deliberately avoids the panes'
  * existing rose hover and the role series colors, so a highlighted row still
  * reads as highlighted while hovered.
  */
-export const HIGHLIGHT_ROW =
-  "bg-amber-100 dark:bg-amber-900/40 ring-1 ring-inset ring-amber-400 dark:ring-amber-600";
+export const HIGHLIGHT_ROW = `${HIGHLIGHT_BG} ring-1 ring-inset ring-amber-400 dark:ring-amber-600`;
 
 /**
  * Weaker tint for rows that are only swept in by a group target
  * ("service.group.*"). The named row keeps HIGHLIGHT_ROW, so the thing the
  * link actually points at stays the one that stands out.
  */
-export const HIGHLIGHT_ROW_MEMBER = "bg-amber-50 dark:bg-amber-900/20";
+export const HIGHLIGHT_ROW_MEMBER = HIGHLIGHT_BG_MEMBER;
 
 /**
  * Row-inline copy button: swaps to a check for a moment once the write lands.
