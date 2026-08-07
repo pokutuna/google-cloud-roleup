@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  GripVertical,
   X,
 } from "lucide-react";
 import {
@@ -968,7 +969,13 @@ function MatrixTable({
               <span className="text-[10px] font-normal text-gray-400">
                 {t("compare.permissionColumn")}
               </span>
-              <div {...colResizerProps("perm", permW)} />
+              {/* the permission column is the one worth widening, so its knob
+                  stays visible instead of only appearing on hover */}
+              <div {...colResizerProps("perm", permW)}>
+                <div className="pointer-events-none absolute top-1/2 left-1/2 flex h-6 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                  <GripVertical size={12} />
+                </div>
+              </div>
             </th>
             {roleIndexes.map((roleIdx, i) => {
               const role = ds.roles[roleIdx];
