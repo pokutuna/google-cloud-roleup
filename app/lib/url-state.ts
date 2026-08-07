@@ -26,6 +26,22 @@ export function sameItem(a: SelItem, b: SelItem): boolean {
   return a.type === b.type && a.name === b.name;
 }
 
+/**
+ * ?hl= names a permission ("bigquery.tables.getData") or a resource group
+ * ("bigquery.tables", or "bigquery.tables.*" with an explicit wildcard) to
+ * highlight inside the detail / compare panes. Purely a view hint: unlike
+ * ?i=p:, it never changes which pane renders, nor the row ordering.
+ */
+export function parseHighlight(raw: string | null): string | null {
+  const value = raw?.trim();
+  return value ? value : null;
+}
+
+/** "bigquery.tables.*" -> "bigquery.tables"; anything else unchanged. */
+export function stripWildcard(raw: string): string {
+  return raw.endsWith(".*") ? raw.slice(0, -2) : raw;
+}
+
 /** ReversePane role ordering; default is "count-asc" (least privilege first) */
 export type SortKey = "count-asc" | "count-desc" | "name";
 const SORT_KEYS: SortKey[] = ["count-asc", "count-desc", "name"];
@@ -45,6 +61,7 @@ export function useExplorerState() {
   const q = params.get("q") ?? "";
   const selection = useMemo(() => parseSel(params.get("i")), [params]);
   const showServiceAgents = params.get("agents") === "1";
+  const highlight = parseHighlight(params.get("hl"));
   const sortParam = params.get("sort");
   const sort: SortKey = SORT_KEYS.includes(sortParam as SortKey)
     ? (sortParam as SortKey)
@@ -67,6 +84,7 @@ export function useExplorerState() {
         q?: string;
         sel?: SelItem[];
         agents?: boolean;
+        hl?: string | null;
         sort?: SortKey;
         cmpSort?: CompareSortMode;
         cmpReversed?: boolean;
@@ -89,6 +107,10 @@ export function useExplorerState() {
           if (next.agents !== undefined) {
             if (next.agents) p.set("agents", "1");
             else p.delete("agents");
+          }
+          if (next.hl !== undefined) {
+            if (next.hl) p.set("hl", next.hl);
+            else p.delete("hl");
           }
           if (next.sort !== undefined) {
             if (next.sort !== DEFAULT_SORT) p.set("sort", next.sort);
@@ -122,7 +144,7 @@ export function useExplorerState() {
 
   /** row click: make this the single anchor */
   const select = useCallback(
-    (item: SelItem) => update({ sel: [item] }, false),
+    (item: SelItem) => update({ sel: [item], hl: null }, false),
     [update],
   );
 
@@ -135,10 +157,20 @@ export function useExplorerState() {
             ...selection.filter((it) => it.type === "r"),
             { type: "p", name },
           ],
+          hl: null,
         },
         false,
       ),
     [selection, update],
+  );
+
+  /**
+   * Highlight is a view hint, not a navigation step: replace history so the
+   * back button keeps walking selection states rather than highlights.
+   */
+  const setHighlight = useCallback(
+    (value: string | null) => update({ hl: value }, true),
+    [update],
   );
 
   /** checkbox: add to / remove from the comparison set (roles only) */
@@ -203,6 +235,8 @@ export function useExplorerState() {
     clear,
     showServiceAgents,
     setShowServiceAgents,
+    highlight,
+    setHighlight,
     sort,
     setSort,
     cmpSort,

@@ -52,6 +52,25 @@ export function buildRows(
   return rows;
 }
 
+/**
+ * Row index a ?hl= target should scroll to: the exact permission's flat row
+ * when it is visible, otherwise its group's placeholder row. Returns -1 when
+ * the target isn't in this list at all (filtered out, or another role's).
+ */
+export function findHighlightRow(
+  rows: Row[],
+  permId: number | undefined,
+  groupKey: string,
+): number {
+  if (permId !== undefined) {
+    const flat = rows.findIndex(
+      (row) => row.type === "flat" && row.id === permId,
+    );
+    if (flat !== -1) return flat;
+  }
+  return rows.findIndex((row) => row.type === "group" && row.key === groupKey);
+}
+
 /** Every distinct resource key across permIds (used by "collapse all"). */
 export function allResourceKeys(ds: Dataset, permIds: number[]): string[] {
   const keys = new Set<string>();

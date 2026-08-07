@@ -1,0 +1,71 @@
+import { describe, expect, it } from "vitest";
+import { isPermHighlighted, resolveHighlight } from "./highlight";
+import { buildFixtureDataset } from "./test/fixture";
+
+const ds = buildFixtureDataset();
+
+describe("resolveHighlight", () => {
+  it("returns null for an empty target", () => {
+    expect(resolveHighlight(ds, null)).toBeNull();
+    expect(resolveHighlight(ds, "")).toBeNull();
+  });
+
+  it("resolves an exact permission name, carrying its group", () => {
+    expect(resolveHighlight(ds, "bigquery.tables.getData")).toEqual({
+      raw: "bigquery.tables.getData",
+      permId: 3,
+      groupKey: "bigquery.tables",
+    });
+  });
+
+  it("resolves a group with an explicit wildcard", () => {
+    expect(resolveHighlight(ds, "bigquery.tables.*")).toEqual({
+      raw: "bigquery.tables.*",
+      groupKey: "bigquery.tables",
+    });
+  });
+
+  it("resolves a bare group name without the wildcard", () => {
+    expect(resolveHighlight(ds, "storage.objects")).toEqual({
+      raw: "storage.objects",
+      groupKey: "storage.objects",
+    });
+  });
+
+  it("resolves a prefix-less permission, whose group is the service", () => {
+    expect(resolveHighlight(ds, "browser.get")).toEqual({
+      raw: "browser.get",
+      permId: 5,
+      groupKey: "browser",
+    });
+  });
+
+  it("returns null when the target matches neither a permission nor a group", () => {
+    expect(resolveHighlight(ds, "nosuch.thing.here")).toBeNull();
+    expect(resolveHighlight(ds, "nosuch.thing.*")).toBeNull();
+  });
+});
+
+describe("isPermHighlighted", () => {
+  it("matches only the exact permission for a permission target", () => {
+    const hl = resolveHighlight(ds, "bigquery.tables.getData");
+    expect(isPermHighlighted(ds, hl, 3)).toBe(true);
+    expect(isPermHighlighted(ds, hl, 4)).toBe(false);
+  });
+
+  it("matches every permission in the group for a group target", () => {
+    const hl = resolveHighlight(ds, "bigquery.tables.*");
+    // 2,3,4 are the bigquery.tables permissions in the fixture
+    expect([2, 3, 4].map((id) => isPermHighlighted(ds, hl, id))).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    // bigquery.datasets.get is a different group
+    expect(isPermHighlighted(ds, hl, 0)).toBe(false);
+  });
+
+  it("is false when there is no highlight", () => {
+    expect(isPermHighlighted(ds, null, 3)).toBe(false);
+  });
+});

@@ -1,6 +1,62 @@
-import { X } from "lucide-react";
+import { Check, Link2, X } from "lucide-react";
+import { useState } from "react";
 import { useT } from "../lib/i18n";
 import { ENTITY } from "./colors";
+
+/**
+ * Highlight tint for a ?hl= target. Amber deliberately avoids the panes'
+ * existing rose hover and the role series colors, so a highlighted row still
+ * reads as highlighted while hovered.
+ */
+export const HIGHLIGHT_ROW =
+  "bg-amber-100 dark:bg-amber-900/40 ring-1 ring-inset ring-amber-400 dark:ring-amber-600";
+
+/**
+ * Copies a deep link to the current view with ?hl= pointing at `target`.
+ * Rendered inline in permission and group rows; the icon only materializes
+ * on row hover (the caller supplies `group-hover` visibility).
+ */
+export function CopyLinkButton({
+  target,
+  className,
+}: {
+  target: string;
+  className?: string;
+}) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+
+  const copy = async (e: React.MouseEvent) => {
+    // rows are clickable (reverse lookup / collapse) — this button is not that
+    e.preventDefault();
+    e.stopPropagation();
+    const url = new URL(window.location.href);
+    url.searchParams.set("hl", target);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard denied (insecure context / permission): leave the icon as-is
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? t("link.copied") : t("link.copy")}
+      aria-label={copied ? t("link.copied") : t("link.copy")}
+      className={`shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 cursor-pointer dark:hover:bg-gray-700 dark:hover:text-gray-200 ${className ?? ""}`}
+    >
+      {copied ? (
+        <Check size={12} className="inline-block text-green-600" />
+      ) : (
+        <Link2 size={12} className="inline-block" />
+      )}
+    </button>
+  );
+}
 
 export function EntityChip({
   kind,
@@ -83,6 +139,47 @@ export function PermFilterNotice({
         title={t("primitives.clearFilter")}
         aria-label={t("primitives.clearFilter")}
         className="ml-auto rounded p-0.5 text-rose-700 hover:bg-rose-100 hover:text-rose-900 cursor-pointer dark:text-rose-300 dark:hover:bg-rose-900/60 dark:hover:text-rose-100"
+      >
+        <X size={12} className="inline-block" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One-line banner for an active ?hl= highlight, with a dismiss button.
+ * When `visible` is false the target isn't among the rows on screen (wrong
+ * role, or hidden by the s:/p: filter), so the copy says as much.
+ */
+export function HighlightNotice({
+  target,
+  visible,
+  onClear,
+}: {
+  target: string;
+  visible: boolean;
+  onClear: () => void;
+}) {
+  const t = useT();
+  const tone = visible
+    ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+    : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400";
+  return (
+    <div
+      className={`flex items-center gap-2 border-b px-3 py-1.5 text-xs ${tone}`}
+    >
+      <Link2 size={12} className="inline-block shrink-0" />
+      <span className="min-w-0 truncate">
+        {visible
+          ? t("link.highlighting", { target })
+          : t("link.notVisible", { target })}
+      </span>
+      <button
+        type="button"
+        onClick={onClear}
+        title={t("link.clearHighlight")}
+        aria-label={t("link.clearHighlight")}
+        className="ml-auto shrink-0 rounded p-0.5 hover:bg-black/10 cursor-pointer dark:hover:bg-white/10"
       >
         <X size={12} className="inline-block" />
       </button>

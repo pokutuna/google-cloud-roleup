@@ -263,6 +263,25 @@ const MESSAGES = {
     ja: "検索によるフィルタを解除",
     en: "Clear search filter",
   },
+
+  // permalinks (?hl=)
+  "link.copy": {
+    ja: "この項目へのリンクをコピー",
+    en: "Copy a link to this entry",
+  },
+  "link.copied": { ja: "リンクをコピーしました", en: "Link copied" },
+  "link.clearHighlight": {
+    ja: "ハイライトを解除",
+    en: "Clear highlight",
+  },
+  "link.highlighting": {
+    ja: "{target} をハイライト中",
+    en: "Highlighting {target}",
+  },
+  "link.notVisible": {
+    ja: "{target} は現在の表示条件では見つかりません",
+    en: "{target} is not visible under the current view settings",
+  },
   // home.tsx
   "home.showList": { ja: "リストを表示", en: "Show list" },
   "home.backToList": { ja: "一覧に戻る", en: "Back to list" },

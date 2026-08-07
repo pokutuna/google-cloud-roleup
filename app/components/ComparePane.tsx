@@ -14,8 +14,14 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import { type Dataset, permParts, shortRoleName } from "../lib/data";
+import {
+  isPermHighlighted,
+  type ResolvedHighlight,
+  resolveHighlight,
+} from "../lib/highlight";
 import { useT } from "../lib/i18n";
 import type { Translate } from "../lib/i18n-data";
 import {
@@ -27,7 +33,14 @@ import {
 } from "../lib/search";
 import type { CompareSortMode, ExplorerState, SelItem } from "../lib/url-state";
 import { COMMON_SECTION, seriesColor } from "./colors";
-import { MonoName, PermFilterNotice, StageTag } from "./primitives";
+import {
+  CopyLinkButton,
+  HIGHLIGHT_ROW,
+  HighlightNotice,
+  MonoName,
+  PermFilterNotice,
+  StageTag,
+} from "./primitives";
 
 /** Wide enough to read typical "service.resource.verb" permission names. */
 const PERM_COL_DEFAULT_WIDTH = 320;
@@ -242,6 +255,8 @@ function SparkPie({ ratio }: { ratio: number }) {
 
 interface MatrixState {
   collapsed: Set<string>;
+  /** keys unfolded on behalf of a ?hl= target, overriding `collapsed` */
+  forceOpen: Set<string>;
   permW: number;
   roleW: number;
 }
@@ -249,11 +264,13 @@ interface MatrixState {
 type MatrixAction =
   | { type: "toggleCollapsed"; key: string }
   | { type: "setColumnWidth"; column: "perm" | "role"; value: number }
-  | { type: "resetRoleWidth"; value: number };
+  | { type: "resetRoleWidth"; value: number }
+  | { type: "setForceOpen"; keys: Set<string> };
 
 function createMatrixState(roleW: number): MatrixState {
   return {
     collapsed: new Set(),
+    forceOpen: new Set(),
     permW: PERM_COL_DEFAULT_WIDTH,
     roleW,
   };
@@ -265,7 +282,11 @@ function matrixReducer(state: MatrixState, action: MatrixAction): MatrixState {
       const collapsed = new Set(state.collapsed);
       if (collapsed.has(action.key)) collapsed.delete(action.key);
       else collapsed.add(action.key);
-      return { ...state, collapsed };
+      // an explicit toggle wins over the highlight's forced expansion, so the
+      // user can fold a highlighted group without dropping ?hl= first
+      const forceOpen = new Set(state.forceOpen);
+      forceOpen.delete(action.key);
+      return { ...state, collapsed, forceOpen };
     }
     case "setColumnWidth":
       return action.column === "perm"
@@ -273,7 +294,37 @@ function matrixReducer(state: MatrixState, action: MatrixAction): MatrixState {
         : { ...state, roleW: action.value };
     case "resetRoleWidth":
       return { ...state, roleW: action.value };
+    case "setForceOpen":
+      return { ...state, forceOpen: action.keys };
   }
+}
+
+/**
+ * Collapse keys that must be unfolded for a ?hl= target to be on screen.
+ * The two sort modes key their groups differently: "name" uses the bare
+ * group key, "diff" nests groups under a holder-mask section, and a group
+ * highlight can straddle several sections at once.
+ */
+function highlightOpenKeys(
+  ds: Dataset,
+  hl: ResolvedHighlight | null,
+  permIds: number[],
+  masks: Map<number, number>,
+  sortMode: CompareSortMode,
+): Set<string> {
+  const keys = new Set<string>();
+  if (!hl) return keys;
+  if (sortMode === "name") {
+    keys.add(hl.groupKey);
+    return keys;
+  }
+  for (const id of permIds) {
+    if (!isPermHighlighted(ds, hl, id)) continue;
+    const mask = masks.get(id) ?? 0;
+    keys.add(`sec:${mask}`);
+    keys.add(`${mask}/${permParts(ds.permissions[id]).group}`);
+  }
+  return keys;
 }
 
 function MatrixView({
@@ -281,11 +332,13 @@ function MatrixView({
   state,
   roleIndexes,
   parsed,
+  highlight,
 }: {
   ds: Dataset;
   state: ExplorerState;
   roleIndexes: number[];
   parsed: ParsedQuery;
+  highlight: ResolvedHighlight | null;
 }) {
   const t = useT();
   const n = roleIndexes.length;
@@ -319,7 +372,7 @@ function MatrixView({
   useEffect(() => {
     dispatch({ type: "resetRoleWidth", value: defaultRoleW });
   }, [defaultRoleW]);
-  const { collapsed, permW, roleW } = matrix;
+  const { collapsed, forceOpen, permW, roleW } = matrix;
   const sortMode = state.cmpSort ?? (n === 2 ? "diff" : "name");
   const reversed = state.cmpReversed;
   const showCommon = state.cmpShowCommon;
@@ -514,9 +567,20 @@ function MatrixView({
   // default: expand groups when the overall row count is small enough to scan
   const defaultOpen = totalRows <= 60;
   const isOpen = (key: string) =>
-    collapsed.has(key) ? !defaultOpen : defaultOpen;
-  const isSectionOpen = (key: string) => !collapsed.has(key);
+    forceOpen.has(key) || (collapsed.has(key) ? !defaultOpen : defaultOpen);
+  const isSectionOpen = (key: string) =>
+    forceOpen.has(key) || !collapsed.has(key);
   const toggle = (key: string) => dispatch({ type: "toggleCollapsed", key });
+
+  // unfold whatever the ?hl= target lives under. Recomputed when the target or
+  // the grouping changes; a manual toggle then clears that key (see reducer).
+  const openKeys = useMemo(
+    () => highlightOpenKeys(ds, highlight, permIds, masks, sortMode),
+    [ds, highlight, permIds, masks, sortMode],
+  );
+  useEffect(() => {
+    dispatch({ type: "setForceOpen", keys: openKeys });
+  }, [openKeys]);
 
   return (
     <div className="flex h-full min-w-0 flex-col">
@@ -549,6 +613,7 @@ function MatrixView({
         isOpen={isOpen}
         isSectionOpen={isSectionOpen}
         toggle={toggle}
+        highlight={highlight}
         t={t}
       />
     </div>
@@ -661,6 +726,8 @@ function MatrixGroupRows({
   collapseKey,
   isOpen,
   toggle,
+  highlight,
+  registerHighlightRow,
 }: {
   ds: Dataset;
   state: ExplorerState;
@@ -670,15 +737,33 @@ function MatrixGroupRows({
   collapseKey: string;
   isOpen: (key: string) => boolean;
   toggle: (key: string) => void;
+  highlight: ResolvedHighlight | null;
+  registerHighlightRow: (el: HTMLTableRowElement | null, rank: number) => void;
 }) {
   const opened = isOpen(collapseKey);
+  const groupHighlighted = highlight?.groupKey === group.key;
+  // scroll anchor: the exact permission row when the group is open, otherwise
+  // the group header standing in for it
+  const anchorGroupHeader =
+    groupHighlighted && (!opened || highlight?.permId === undefined);
   return (
     <Fragment>
       <tr
-        className="cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900"
+        ref={
+          anchorGroupHeader ? (el) => registerHighlightRow(el, 1) : undefined
+        }
+        className={`group cursor-pointer border-b border-gray-100 bg-gray-50/60 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900 ${
+          groupHighlighted ? HIGHLIGHT_ROW : ""
+        }`}
         onClick={() => toggle(collapseKey)}
       >
-        <td className="sticky left-0 z-10 border-r border-gray-200 bg-gray-50/60 px-2 py-1 dark:border-gray-800 dark:bg-gray-900/40">
+        <td
+          className={`sticky left-0 z-10 border-r border-gray-200 px-2 py-1 dark:border-gray-800 ${
+            groupHighlighted
+              ? "bg-amber-100 dark:bg-amber-900/40"
+              : "bg-gray-50/60 dark:bg-gray-900/40"
+          }`}
+        >
           <span className="flex items-center gap-1.5 overflow-hidden">
             <span className="flex w-3 shrink-0 text-gray-400">
               {opened ? (
@@ -694,6 +779,10 @@ function MatrixGroupRows({
             <span className="shrink-0 text-[10px] text-gray-400">
               {group.permIds.length}
             </span>
+            <CopyLinkButton
+              target={`${group.key}.*`}
+              className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            />
           </span>
         </td>
         {roleIndexes.map((roleIdx, i) => {
@@ -729,31 +818,51 @@ function MatrixGroupRows({
         group.permIds.map((id) => {
           const name = ds.permissions[id];
           const mask = masks.get(id) ?? 0;
+          const permHighlighted = isPermHighlighted(ds, highlight, id);
+          const anchorPermRow =
+            permHighlighted && highlight?.permId !== undefined;
           return (
             <tr
               key={id}
-              className="border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30"
+              ref={
+                anchorPermRow ? (el) => registerHighlightRow(el, 0) : undefined
+              }
+              className={`group border-b border-gray-50 hover:bg-rose-50 dark:border-gray-900 dark:hover:bg-rose-950/30 ${
+                permHighlighted ? HIGHLIGHT_ROW : ""
+              }`}
             >
-              <td className="sticky left-0 z-10 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-                <button
-                  type="button"
-                  onClick={() => state.anchorPerm(name)}
-                  title={ds.permMeta[id]?.description ?? name}
-                  aria-label={name}
-                  className="block w-full cursor-pointer truncate py-0.5 pr-2 pl-7 text-left font-mono hover:underline"
-                >
-                  <span className="text-gray-400 dark:text-gray-500">
-                    {permParts(name).group}.
-                  </span>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                    {permParts(name).verb}
-                  </span>
-                  {ds.permMeta[id]?.stage && (
-                    <span className="ml-1.5">
-                      <StageTag stage={ds.permMeta[id]?.stage} />
+              <td
+                className={`sticky left-0 z-10 border-r border-gray-200 dark:border-gray-800 ${
+                  permHighlighted
+                    ? "bg-amber-100 dark:bg-amber-900/40"
+                    : "bg-white dark:bg-gray-950"
+                }`}
+              >
+                <span className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => state.anchorPerm(name)}
+                    title={ds.permMeta[id]?.description ?? name}
+                    aria-label={name}
+                    className="min-w-0 flex-1 cursor-pointer truncate py-0.5 pl-7 text-left font-mono hover:underline"
+                  >
+                    <span className="text-gray-400 dark:text-gray-500">
+                      {permParts(name).group}.
                     </span>
-                  )}
-                </button>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      {permParts(name).verb}
+                    </span>
+                    {ds.permMeta[id]?.stage && (
+                      <span className="ml-1.5">
+                        <StageTag stage={ds.permMeta[id]?.stage} />
+                      </span>
+                    )}
+                  </button>
+                  <CopyLinkButton
+                    target={name}
+                    className="mr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  />
+                </span>
               </td>
               {roleIndexes.map((roleIdx, i) => {
                 const color = seriesColor(i);
@@ -795,6 +904,8 @@ function MatrixSectionRows({
   isGroupOpen,
   isSectionOpen,
   toggle,
+  highlight,
+  registerHighlightRow,
   t,
 }: {
   ds: Dataset;
@@ -807,6 +918,8 @@ function MatrixSectionRows({
   isGroupOpen: (key: string) => boolean;
   isSectionOpen: (key: string) => boolean;
   toggle: (key: string) => void;
+  highlight: ResolvedHighlight | null;
+  registerHighlightRow: (el: HTMLTableRowElement | null, rank: number) => void;
   t: Translate;
 }) {
   const sectionOpen = isSectionOpen(section.key);
@@ -870,6 +983,8 @@ function MatrixSectionRows({
             collapseKey={`${section.mask}/${group.key}`}
             isOpen={isGroupOpen}
             toggle={toggle}
+            highlight={highlight}
+            registerHighlightRow={registerHighlightRow}
           />
         ))}
     </Fragment>
@@ -892,6 +1007,7 @@ function MatrixTable({
   isOpen,
   isSectionOpen,
   toggle,
+  highlight,
   t,
 }: {
   ds: Dataset;
@@ -912,8 +1028,47 @@ function MatrixTable({
   isOpen: (key: string) => boolean;
   isSectionOpen: (key: string) => boolean;
   toggle: (key: string) => void;
+  highlight: ResolvedHighlight | null;
   t: Translate;
 }) {
+  /**
+   * Scroll anchor for the ?hl= target. Held in state, not a ref, because the
+   * better anchor arrives a render late: the group starts collapsed, so only
+   * its header exists on the first paint, and the exact permission row mounts
+   * after the forceOpen effect expands it. State re-runs the scroll effect at
+   * that point; a ref would leave us parked on the header.
+   *
+   * Lower rank wins — 0 is the exact permission row, 1 the group header
+   * standing in for it. Ties keep the first (topmost) row, which matters in
+   * "差分順" where a group highlight surfaces under several sections.
+   */
+  const target = highlight?.raw;
+  const [anchor, setAnchor] = useState<{
+    el: HTMLTableRowElement;
+    rank: number;
+    target: string;
+  } | null>(null);
+  const registerHighlightRow = (
+    el: HTMLTableRowElement | null,
+    rank: number,
+  ) => {
+    if (!el || !target) return;
+    setAnchor((prev) =>
+      prev && prev.target === target && prev.rank <= rank
+        ? prev
+        : { el, rank, target },
+    );
+  };
+
+  const anchorEl = anchor && anchor.target === target ? anchor.el : null;
+  useEffect(() => {
+    if (!anchorEl) return;
+    const frame = requestAnimationFrame(() => {
+      anchorEl.scrollIntoView({ block: "center", inline: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [anchorEl]);
+
   const bodyRows: ReactNode[] = [];
   if (sortMode === "name") {
     const orderedGroups = reversed ? [...groups].reverse() : groups;
@@ -929,6 +1084,8 @@ function MatrixTable({
           collapseKey={group.key}
           isOpen={isOpen}
           toggle={toggle}
+          highlight={highlight}
+          registerHighlightRow={registerHighlightRow}
         />,
       );
     }
@@ -948,6 +1105,8 @@ function MatrixTable({
           isGroupOpen={isOpen}
           isSectionOpen={isSectionOpen}
           toggle={toggle}
+          highlight={highlight}
+          registerHighlightRow={registerHighlightRow}
           t={t}
         />,
       );
@@ -1049,6 +1208,19 @@ export function ComparePane({
     [ds, masks, parsed],
   );
 
+  const highlight = useMemo(
+    () => resolveHighlight(ds, state.highlight),
+    [ds, state.highlight],
+  );
+  // whether the target is anywhere in the compared union, after the s:/p:
+  // filter — the matrix's own toggles can still hide it, but this catches the
+  // common "linked from another role" case
+  const highlightVisible = useMemo(() => {
+    if (!highlight) return false;
+    const ids = filterPermIds(ds, [...masks.keys()], parsed);
+    return ids.some((id) => isPermHighlighted(ds, highlight, id));
+  }, [ds, highlight, masks, parsed]);
+
   // Removing a role via the chip's × changes the role count, and when the
   // user hasn't explicitly chosen a sort mode, its default depends on that
   // count (n===2 -> "diff", otherwise "name"). Pin the currently-effective
@@ -1107,12 +1279,20 @@ export function ComparePane({
           onClear={() => state.setQ(stripPermQualifiers(state.q))}
         />
       )}
+      {state.highlight && (
+        <HighlightNotice
+          target={state.highlight}
+          visible={highlightVisible}
+          onClear={() => state.setHighlight(null)}
+        />
+      )}
       <div className="min-h-0 min-w-0 flex-1">
         <MatrixView
           ds={ds}
           state={state}
           roleIndexes={roleIndexes}
           parsed={parsed}
+          highlight={highlight}
         />
       </div>
     </div>

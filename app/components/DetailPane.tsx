@@ -1,5 +1,6 @@
 import { type ReactNode, useMemo, useState } from "react";
 import { type Dataset, shortRoleName } from "../lib/data";
+import { resolveHighlight } from "../lib/highlight";
 import { useT } from "../lib/i18n";
 import {
   filterPermIds,
@@ -12,7 +13,7 @@ import {
 import type { ExplorerState } from "../lib/url-state";
 import { MAX_COMPARE_ROLES } from "./colors";
 import { PermGroupList } from "./PermGroupList";
-import { MonoName, PermFilterNotice } from "./primitives";
+import { HighlightNotice, MonoName, PermFilterNotice } from "./primitives";
 
 function MissTeaser({
   ds,
@@ -300,6 +301,19 @@ export function DetailPane({
     ...parsed.s.map((t) => `s:${t}`),
     ...parsed.p.map((t) => `p:${t}`),
   ];
+  const highlight = useMemo(
+    () => resolveHighlight(ds, state.highlight),
+    [ds, state.highlight],
+  );
+  // a ?hl= target can point outside this role, or be hidden by the s:/p:
+  // filter — say so rather than silently highlighting nothing
+  const highlightVisible =
+    highlight !== null &&
+    filtered.some((id) =>
+      highlight.permId !== undefined
+        ? id === highlight.permId
+        : ds.permissions[id].startsWith(`${highlight.groupKey}.`),
+    );
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -341,6 +355,13 @@ export function DetailPane({
               onClear={() => state.setQ(stripPermQualifiers(state.q))}
             />
           )}
+          {state.highlight && (
+            <HighlightNotice
+              target={state.highlight}
+              visible={highlightVisible}
+              onClear={() => state.setHighlight(null)}
+            />
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {filtered.length === 0 && missTerm ? (
               <MissTeaser ds={ds} state={state} term={missTerm} />
@@ -349,6 +370,7 @@ export function DetailPane({
                 ds={ds}
                 permIds={filtered}
                 defaultOpen={filterActive || filtered.length <= 60}
+                highlight={highlight}
                 onSelectPerm={(name) => state.anchorPerm(name)}
               />
             )}

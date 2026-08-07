@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildFixtureDataset } from "../lib/test/fixture";
-import { allResourceKeys, buildRows } from "./perm-group-list-utils";
+import {
+  allResourceKeys,
+  buildRows,
+  findHighlightRow,
+} from "./perm-group-list-utils";
 
 const ds = buildFixtureDataset();
 // all permission ids in name-sorted (id) order, as the real caller supplies
@@ -83,5 +87,30 @@ describe("allResourceKeys", () => {
 
   it("returns an empty array for an empty permIds list", () => {
     expect(allResourceKeys(ds, [])).toEqual([]);
+  });
+});
+
+describe("findHighlightRow", () => {
+  it("finds the flat row of an exact permission", () => {
+    const rows = buildRows(ds, [0, 1, 2, 3, 4], new Set());
+    // [group bigquery.datasets, 0, 1, group bigquery.tables, 2, 3, 4]
+    expect(findHighlightRow(rows, 3, "bigquery.tables")).toBe(5);
+  });
+
+  it("falls back to the group row when the group is collapsed", () => {
+    const rows = buildRows(ds, [0, 1, 2, 3, 4], new Set(["bigquery.tables"]));
+    // [group bigquery.datasets, 0, 1, group bigquery.tables]
+    expect(findHighlightRow(rows, 3, "bigquery.tables")).toBe(3);
+  });
+
+  it("finds the group row for a group-only target", () => {
+    const rows = buildRows(ds, [0, 1, 2, 3, 4], new Set());
+    expect(findHighlightRow(rows, undefined, "bigquery.tables")).toBe(3);
+  });
+
+  it("returns -1 when the target is not in the list at all", () => {
+    const rows = buildRows(ds, [0, 1], new Set());
+    expect(findHighlightRow(rows, 8, "storage.objects")).toBe(-1);
+    expect(findHighlightRow(rows, undefined, "storage.objects")).toBe(-1);
   });
 });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { encodeSel, parseSel, sameItem } from "./url-state";
+import {
+  encodeSel,
+  parseHighlight,
+  parseSel,
+  sameItem,
+  stripWildcard,
+} from "./url-state";
 
 describe("sameItem", () => {
   it("is true when type and name both match", () => {
@@ -70,5 +76,37 @@ describe("encodeSel", () => {
 
   it("returns an empty string for an empty list", () => {
     expect(encodeSel([])).toBe("");
+  });
+});
+
+describe("parseHighlight", () => {
+  it("returns null for missing or blank values", () => {
+    expect(parseHighlight(null)).toBeNull();
+    expect(parseHighlight("")).toBeNull();
+    expect(parseHighlight("   ")).toBeNull();
+  });
+
+  it("keeps both the permission and the wildcard group form", () => {
+    expect(parseHighlight("bigquery.tables.getData")).toBe(
+      "bigquery.tables.getData",
+    );
+    expect(parseHighlight("bigquery.tables.*")).toBe("bigquery.tables.*");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(parseHighlight("  bigquery.tables.*  ")).toBe("bigquery.tables.*");
+  });
+});
+
+describe("stripWildcard", () => {
+  it("drops a trailing .*", () => {
+    expect(stripWildcard("bigquery.tables.*")).toBe("bigquery.tables");
+  });
+
+  it("leaves other values untouched", () => {
+    expect(stripWildcard("bigquery.tables")).toBe("bigquery.tables");
+    expect(stripWildcard("bigquery.tables.getData")).toBe(
+      "bigquery.tables.getData",
+    );
   });
 });
