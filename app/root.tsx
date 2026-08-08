@@ -24,6 +24,16 @@ const THEME_INIT_SCRIPT = `
 `;
 
 export const links: Route.LinksFunction = () => [
+  {
+    rel: "icon",
+    href: `${import.meta.env.BASE_URL}favicon.ico`,
+    type: "image/x-icon",
+    sizes: "any",
+  },
+  {
+    rel: "apple-touch-icon",
+    href: `${import.meta.env.BASE_URL}apple-touch-icon.png`,
+  },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",

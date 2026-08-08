@@ -1,5 +1,7 @@
 # Google Cloud RoleUp
 
+<img src="assets/icon/icon.png" width="128" alt="Google Cloud RoleUp icon" />
+
 **https://pokutuna.github.io/google-cloud-roleup/**
 
 A fast, static explorer for Google Cloud IAM roles and permissions —
