@@ -295,6 +295,41 @@ export function StageTag({ stage }: { stage?: string }) {
 }
 
 /**
+ * The roll cake app icon, which jiggles when clicked (HeaderBar / GuidePane).
+ *
+ * The animation class is dropped on `animationend` rather than left in place,
+ * so a second click re-adds it and replays it — React reuses the element, and
+ * an unchanged class name would never restart the animation.
+ *
+ * It stays a plain <img> with no button wrapper: the jiggle is a decorative
+ * easter egg, not an action, so it should not land in the tab order or be
+ * announced. Pointer-only by design.
+ */
+export function AppIcon({ className }: { className?: string }) {
+  const [jiggling, setJiggling] = useState(false);
+  return (
+    <button
+      type="button"
+      // Decorative easter egg, not a real control: kept out of the tab order
+      // and hidden from assistive tech, since "jiggle the logo" is nothing a
+      // keyboard or screen reader user needs to reach.
+      tabIndex={-1}
+      aria-hidden="true"
+      onClick={() => setJiggling(true)}
+      onAnimationEnd={() => setJiggling(false)}
+      className={`${className ?? ""} ${jiggling ? "roll-cake-jiggle" : ""} shrink-0 cursor-pointer select-none`}
+    >
+      <img
+        src={`${import.meta.env.BASE_URL}apple-touch-icon.png`}
+        alt=""
+        className="size-full"
+        draggable={false}
+      />
+    </button>
+  );
+}
+
+/**
  * "bigquery.dataViewer" -> dim "bigquery." + normal "dataViewer".
  * A leading "roles/" (e.g. basic roles like "roles/admin") is dimmed too.
  */

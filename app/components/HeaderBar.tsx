@@ -10,7 +10,7 @@ import { useTheme } from "../lib/theme";
 import { THEMES } from "../lib/theme-data";
 import type { ExplorerState } from "../lib/url-state";
 import { Omnibox } from "./Omnibox";
-import { EntityChip } from "./primitives";
+import { AppIcon, EntityChip } from "./primitives";
 
 /**
  * Legend line doubling as a tutorial (§4.1-6): each chip is clickable and
@@ -232,15 +232,11 @@ export function HeaderBar({
   return (
     <header className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
       <div className="flex items-center gap-3">
-        <h1 className="shrink-0 text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-          <Link to="/" className="flex items-center gap-2 hover:underline">
-            <img
-              src={`${import.meta.env.BASE_URL}apple-touch-icon.png`}
-              alt=""
-              width={28}
-              height={28}
-              className="size-7 shrink-0"
-            />
+        {/* The icon sits outside the Link so clicking it jiggles in place
+            rather than navigating home, which would cut the animation short. */}
+        <h1 className="flex shrink-0 items-center gap-2 text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+          <AppIcon className="size-7" />
+          <Link to="/" className="hover:underline">
             Google Cloud RoleUp
           </Link>
         </h1>

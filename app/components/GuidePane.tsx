@@ -3,7 +3,7 @@ import { useT } from "../lib/i18n";
 import type { MsgKey } from "../lib/i18n-data";
 import type { ExplorerState } from "../lib/url-state";
 import { encodeSel } from "../lib/url-state";
-import { EntityChip } from "./primitives";
+import { AppIcon, EntityChip } from "./primitives";
 
 const DETAIL_EXAMPLE_SEL = encodeURIComponent(
   encodeSel([{ type: "r", name: "bigquery.user" }]),
@@ -52,13 +52,7 @@ export function GuidePane({ state }: { state: ExplorerState }) {
       <div className="mx-auto my-auto flex w-full max-w-lg flex-col gap-6">
         <div>
           <div className="mb-6">
-            <img
-              src={`${import.meta.env.BASE_URL}apple-touch-icon.png`}
-              alt=""
-              width={80}
-              height={80}
-              className="mb-3 size-20"
-            />
+            <AppIcon className="mb-3 size-20" />
             <div className="flex items-baseline gap-2">
               <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                 Google Cloud RoleUp
