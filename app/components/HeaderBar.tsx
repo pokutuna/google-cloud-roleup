@@ -233,7 +233,14 @@ export function HeaderBar({
     <header className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
       <div className="flex items-center gap-3">
         <h1 className="shrink-0 text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-          <Link to="/" className="hover:underline">
+          <Link to="/" className="flex items-center gap-2 hover:underline">
+            <img
+              src={`${import.meta.env.BASE_URL}apple-touch-icon.png`}
+              alt=""
+              width={28}
+              height={28}
+              className="size-7 shrink-0"
+            />
             Google Cloud RoleUp
           </Link>
         </h1>
