@@ -1,3 +1,4 @@
+import { LoaderCircle } from "lucide-react";
 import {
   isRouteErrorResponse,
   Links,
@@ -8,7 +9,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
-import { LangProvider, useT } from "./lib/i18n";
+import { LangProvider } from "./lib/i18n";
 import { ThemeProvider } from "./lib/theme";
 import "./app.css";
 
@@ -48,7 +49,8 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja">
+    // The theme init script sets `class="dark"` before hydration.
+    <html lang="ja" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -78,21 +80,14 @@ export default function App() {
   );
 }
 
+/**
+ * Prerendered at build time, when the viewer's language is unknown; keep it
+ * free of translated text so hydration never mismatches.
+ */
 export function HydrateFallback() {
   return (
-    <ThemeProvider>
-      <LangProvider>
-        <HydrateFallbackContent />
-      </LangProvider>
-    </ThemeProvider>
-  );
-}
-
-function HydrateFallbackContent() {
-  const t = useT();
-  return (
-    <div className="flex h-dvh items-center justify-center text-sm text-gray-400">
-      {t("app.loading")}
+    <div className="flex h-dvh items-center justify-center text-gray-400">
+      <LoaderCircle className="size-6 animate-spin" aria-hidden="true" />
     </div>
   );
 }

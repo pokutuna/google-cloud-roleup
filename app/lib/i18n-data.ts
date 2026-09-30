@@ -8,6 +8,9 @@ export const LANGS: { code: Lang; label: string }[] = [
 ];
 
 export function detectLang(): Lang {
+  // Build-time prerender runs in Node, which has its own `localStorage` and
+  // `navigator.language`; keep the output independent of the build machine.
+  if (typeof window === "undefined") return "en";
   try {
     const stored = localStorage.getItem(LANG_STORAGE_KEY);
     if (stored === "en" || stored === "ja") return stored;
@@ -19,10 +22,6 @@ const MESSAGES = {
   "app.subtitle": {
     ja: "Google Cloud IAM ロールを探す・見る・比べる",
     en: "Explore & compare Google Cloud IAM roles",
-  },
-  "app.loading": {
-    ja: "IAM ロールデータを読み込み中...",
-    en: "Loading IAM role data...",
   },
   "app.metaDescription": {
     ja: "Google Cloud IAM のロールとパーミッションを探す・見る・比べるエクスプローラ",
