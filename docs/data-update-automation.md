@@ -9,7 +9,7 @@ cron (weekly) / workflow_dispatch
   -> npm ci --ignore-scripts (before secrets are exposed)
   -> auth to GCP via Workload Identity Federation (no long-lived key)
   -> npm run generate-data          (scripts/generate-data.ts, anomaly check aborts on >10% drop)
-  -> diff public/data/roleup.json   (skip the rest if nothing changed)
+  -> diff public/data/roleup.json   (ignoring generatedAt; skip the rest if nothing changed)
   -> npm test                       (app/lib/roleup-data.test.ts validates the new data's shape)
   -> peter-evans/create-pull-request (branch: data-update)
   -> gh pr merge --auto --squash    (waits for the Test workflow's required check)

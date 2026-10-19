@@ -43,12 +43,12 @@ jobs:
 
       - name: Check for changes
         id: diff
-        # generatedAt is stamped on every run, so this is true on any run
-        # except a same-day re-run with identical data; the weekly PR that
-        # only advances generatedAt is intentional (keeps the "data: ..."
-        # stamp in the UI fresh).
+        # generatedAt is stamped on every run; ignore it so a PR (and deploy)
+        # happens only when the data itself changed. The "data: ..." stamp in
+        # the UI therefore shows the date of the last real data change.
         run: |
-          if git diff --quiet public/data/roleup.json; then
+          if git show HEAD:public/data/roleup.json | jq -S 'del(.generatedAt)' \
+             | cmp -s - <(jq -S 'del(.generatedAt)' public/data/roleup.json); then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
