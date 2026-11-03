@@ -44,21 +44,23 @@ describe("public/data/roleup.json", () => {
   });
 
   it("has sorted, in-range permIds for every role", () => {
+    // Collect violations and assert once: calling expect() per permId
+    // (~200k ids) is slow enough to hit the default test timeout.
     const permCount = json.permissions.length;
+    const violations: string[] = [];
     for (const role of json.roles) {
       for (let i = 0; i < role.permIds.length; i++) {
         const id = role.permIds[i];
-        expect(
-          id >= 0 && id < permCount,
-          `${role.name}: permId ${id} out of range`,
-        ).toBe(true);
-        if (i > 0) {
-          expect(
-            role.permIds[i] > role.permIds[i - 1],
+        if (!(id >= 0 && id < permCount)) {
+          violations.push(`${role.name}: permId ${id} out of range`);
+        }
+        if (i > 0 && !(id > role.permIds[i - 1])) {
+          violations.push(
             `${role.name}: permIds not strictly ascending at index ${i}`,
-          ).toBe(true);
+          );
         }
       }
     }
+    expect(violations).toEqual([]);
   });
 });
