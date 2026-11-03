@@ -19,14 +19,17 @@ updates:
       # react-router packages must move together: `@react-router/serve` and
       # `@react-router/node` pin an *exact* `react-router` peer, so separate
       # per-package bumps land mismatched lockfiles that fail `npm ci`.
-      # Listed before `dev-dependencies` so `@react-router/dev` joins this
-      # group rather than the dev group (first matching group wins).
       react-router:
         patterns:
           - "react-router"
           - "@react-router/*"
       dev-dependencies:
         dependency-type: "development"
+        # Keep @react-router/dev out of this group explicitly. Relying on
+        # "first matching group wins" did not hold in practice (#56).
+        exclude-patterns:
+          - "react-router"
+          - "@react-router/*"
         update-types:
           - "minor"
           - "patch"
